@@ -1,0 +1,1394 @@
+[
+    {
+        "id": "q_001",
+        "question": "Как исправить ошибку \"deadlock detected\" (код 40P01) в PostgreSQL, если она возникает при обновлении одних и тех же строк в разных транзакциях?",
+        "expected_answer": "Если pg_terminate_backend(blocking_pid) не помогает, следует использовать более жесткий метод pg_cancel_backend(blocking_pid). Кроме того, для долгосрочного решения рекомендуется: 1. Проанализировать код приложения на предмет неоптимального порядка UPDATE/INSERT. 2. Переписать транзакции с соблюдением строгого порядка блокировок (например, сортировать по ID перед обновлением). 3. Настроить PostgreSQL (deadlock_timeout, log_lock_waits) для лучшего детектирования.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "01-postgresql-deadlock.md"
+    },
+    {
+        "id": "q_002",
+        "question": "Pod в Kubernetes постоянно перезагружается со статусом CrashLoopBackOff и Exit Code 137. Что это означает и как это исправить?",
+        "expected_answer": "Exit Code 137 (128 + 9 = SIGKILL) означает, что процесс был убит из-за нехватки памяти (OOMKilled). Для исправления: 1. Проверьте текущее потребление памяти с помощью kubectl top pod. 2. Увеличьте resources.limits.memory в манифесте Deployment (например, до 2Gi). 3. Если это Java-приложение, настройте JVM heap через переменную JAVA_OPTS. 4. Проверьте логи на наличие утечек памяти.",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "02-k8s-crashloopbackoff.md"
+    },
+    {
+        "id": "q_003",
+        "question": "Nginx возвращает ошибку \"502 Bad Gateway\" с сообщением \"connect() failed (111: Connection refused) while connecting to upstream\". О чем это говорит?",
+        "expected_answer": "Ошибка означает, что Nginx не может установить TCP-соединение с бэкендом. Решение: 1. Проверьте статус бэкенд-сервиса (systemctl status app-backend) и перезапустите его. 2. Убедитесь, что бэкенд слушает нужный порт (netstat -tlnp) и адрес (0.0.0.0, а не только 127.0.0.1). 3. Проверьте фаервол (uff/iptables). 4. Если приложение работает медленно, увеличьте таймауты (proxy_connect_timeout) в Nginx.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "03-nginx-502-bad-gateway.md"
+    },
+    {
+        "id": "q_004",
+        "question": "При записи в Redis возникает ошибка \"OOM command not allowed when used memory > 'maxmemory'\". Какое быстрое решение можно применить без перезагрузки?",
+        "expected_answer": "Ошибка возникает при достижении лимита maxmemory. Быстрое решение: 1. Временно увеличить лимит памяти через CONFIG SET maxmemory <new_value>. 2. Настроить политику вытеснения, например CONFIG SET maxmemory-policy allkeys-lru, чтобы Redis удалял старые ключи. 3. Установить TTL на ключи и удалить устаревшие.",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "04-redis-out-of-memory.md"
+    },
+    {
+        "id": "q_005",
+        "question": "ERROR 1040 (HY000): Too many connections в MySQL. Что делать, если лимит соединений исчерпан?",
+        "expected_answer": "Решение: 1. Временно увеличьте лимит через SET GLOBAL max_connections = 500. 2. Найдите и убейте зависшие процессы (Sleep) через SHOW FULL PROCESSLIST. 3. Для предотвращения рецидивов оптимизируйте connection pool в приложении (уменьшите pool_size) и настройте таймауты (wait_timeout).",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "05-mysql-too-many-connections.md"
+    },
+    {
+        "id": "q_006",
+        "question": "Контейнер Docker падает с кодом 137, но в логах приложения нет явных ошибок (stack traces). В чем может быть причина?",
+        "expected_answer": "Код 137 (SIGKILL) обычно указывает на OOM (Out Of Memory). Причина: приложение превысило лимит памяти контейнера. Решение: 1. Проверьте системные логи (dmesg) на наличие сообщений 'Out of memory'. 2. Увеличьте лимит памяти (--memory). 3. Оптимизируйте потребление памяти (например, настройте Java Heap, если используется Java).",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "06-docker-exit-code-137.md"
+    },
+    {
+        "id": "q_007",
+        "question": "Elasticsearch Cluster Health = RED, есть нераспределенные шарды (unassigned shards) с причиной ALLOCATION_FAILED. Как выяснить точную причину отказа?",
+        "expected_answer": "Действия: 1. Выполните GET /_cluster/allocation/explain?pretty, чтобы узнать точную причину (например, 'No space left on device'). 2. Если проблема в месте на диске, удалите старые индексы или увеличьте диск. 3. После устранения причины выполните POST /_cluster/reroute?retry_failed=true для повторного назначения шардов.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "07-elasticsearch-cluster-red.md"
+    },
+    {
+        "id": "q_008",
+        "question": "Публикация в RabbitMQ падает с ошибкой 406 PRECONDITION_FAILED - queue max-length exceeded. Что это значит?",
+        "expected_answer": "Очередь переполнена. Действия: 1. Масштабируйте consumers для ускорения обработки. 2. Измените политику переполнения на 'drop-head' (удалять старые), чтобы не блокировать публикацию. 3. Увеличьте max-length, если позволяет память. 4. В крайнем случае очистите очередь (purge_queue).",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "08-rabbitmq-queue-overflow.md"
+    },
+    {
+        "id": "q_009",
+        "question": "MongoDB Secondary узел находится в состоянии RECOVERING и имеет огромный Replication Lag. В логах oplog sync error. Какое решение поможет восстановить синхронизацию?",
+        "expected_answer": "Если данных нет в Oplog (слишком большое отставание): 1. Проверьте сеть (ping). 2. Попробуйте увеличить размер Oplog на Primary. 3. Если не помогает, выполните полный Resync: остановите mongod на Secondary, удалите данные из dbPath (/var/lib/mongodb/*) и запустите снова для инициализации Initial Sync.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "09-mongodb-replica-not-syncing.md"
+    },
+    {
+        "id": "q_010",
+        "question": "Процесс Apache потребляет 100% CPU, в логах server reached MaxRequestWorkers setting. Используется mpm_prefork. Как оптимизировать?",
+        "expected_answer": "Высокая нагрузка часто вызвана mpm_prefork. Решение: 1. Увеличьте MaxRequestWorkers и ServerLimit (если позволяет RAM). 2. Кардинальное решение: переключитесь на mpm_event и используйте php-fpm вместо mod_php, так как event модель эффективнее обрабатывает множество соединений. 3. Оптимизируйте настройки пула PHP-FPM.",
+        "difficulty": "hard",
+        "category": "tuning",
+        "source_file": "10-apache-high-cpu.md"
+    },
+    {
+        "id": "q_011",
+        "question": "Какие параметры в postgresql.conf на мастере обязательны для настройки потоковой репликации?",
+        "expected_answer": "Обязательные параметры: 1. wal_level = replica (для записи данных репликации в WAL). 2. max_wal_senders (например, 10) - число процессов отправки WAL. 3. wal_keep_segments (или replication slots) для хранения старых WAL файлов. 4. hot_standby = on (включается на реплике, но часто задается и на мастере для унификации).",
+        "difficulty": "simple",
+        "category": "configuration",
+        "source_file": "11-postgresql-replication-guide.md"
+    },
+    {
+        "id": "q_012",
+        "question": "Зачем в конфигурации logrotate для Nginx используется блок postrotate с командой kill -USR1?",
+        "expected_answer": "Команда kill -USR1 `cat /run/nginx.pid` посылает сигнал USR1 процессу Nginx. Это заставляет его переоткрыть файловые дескрипторы логов. Без этого Nginx продолжал бы писать в старый файл (который logrotate уже переименовал), и новый файл оставался бы пустым.",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "12-nginx-log-rotation.md"
+    },
+    {
+        "id": "q_013",
+        "question": "Какой параметр в prometheus.yml отвечает за частоту сбора метрик с целевых хостов и какое значение является типичным для продакшена?",
+        "expected_answer": "Параметр scrape_interval. Типичное значение для продакшена составляет 15s или 30s. Например: scrape_interval: 15s.",
+        "difficulty": "simple",
+        "category": "monitoring",
+        "source_file": "13-prometheus-setup-guide.md"
+    },
+    {
+        "id": "q_014",
+        "question": "При настройке GTID репликации в MySQL, какие значения должны быть установлены для gtid_mode и enforce_gtid_consistency?",
+        "expected_answer": "Оба параметра должны быть установлены в ON (gtid_mode = ON, enforce_gtid_consistency = ON) как на мастере, так и на слейве. Также рекомендуется binlog_format = ROW.",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "14-mysql-replication-guide.md"
+    },
+    {
+        "id": "q_015",
+        "question": "Что делает заголовок Strict-Transport-Security (HSTS) в конфигурации Nginx?",
+        "expected_answer": "Заголовок сообщает браузеру, что сайт должен быть доступен ТОЛЬКО по протоколу HTTPS. Браузер будет автоматически преобразовывать все HTTP запросы в HTTPS в течение времени max-age (например, 31536000 секунд), защищая от даунгрейд-атак.",
+        "difficulty": "medium",
+        "category": "security",
+        "source_file": "15-nginx-tls-setup.md"
+    },
+    {
+        "id": "q_016",
+        "question": "Как добавить Prometheus в качестве источника данных в Grafana?",
+        "expected_answer": "В UI Grafana: 1. Перейдите в Configuration -> Data Sources -> Add data source. 2. Выберите тип 'Prometheus'. 3. В поле URL укажите адрес сервера Prometheus (например, http://localhost:9090). 4. Нажмите Save & Test.",
+        "difficulty": "simple",
+        "category": "monitoring",
+        "source_file": "16-grafana-setup-guide.md"
+    },
+    {
+        "id": "q_017",
+        "question": "Какой механизм используется в микросервисе аутентификации для защиты паролей пользователей перед сохранением в базу данных?",
+        "expected_answer": "Пароли хешируются с использованием алгоритма bcrypt перед сохранением в базу данных PostgreSQL.",
+        "difficulty": "simple",
+        "category": "architecture",
+        "source_file": "17-microservice-authentication.md"
+    },
+    {
+        "id": "q_018",
+        "question": "Как обеспечивается идемпотентность операций в микросервисе платежей при повторных запросах?",
+        "expected_answer": "Идемпотентность обеспечивается проверкой уникального поля transaction_id, передаваемого в теле запроса. Если транзакция с таким ID уже обработана, повторное списание не производится.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "18-microservice-payments.md"
+    },
+    {
+        "id": "q_019",
+        "question": "Какую технологию использует микросервис уведомлений для управления очередью задач отправки сообщений?",
+        "expected_answer": "Используется Redis в качестве брокера для очереди задач (RQ - Redis Queue). Задачи (email, sms, push) помещаются в очередь 'notifications'.",
+        "difficulty": "simple",
+        "category": "architecture",
+        "source_file": "19-microservice-notifications.md"
+    },
+    {
+        "id": "q_020",
+        "question": "java.lang.OutOfMemoryError: Java heap space. Какой флаг JVM поможет быстро устранить эту ошибку, если проблема в нехватке памяти?",
+        "expected_answer": "Флаг -Xmx, который устанавливает максимальный размер кучи (Heap Size). Например, запуск с параметром -Xmx4g выделит приложению до 4 ГБ памяти.",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "20-java-heap-space.md"
+    },
+    {
+        "id": "q_021",
+        "question": "В Python возникает ModuleNotFoundError: No module named 'requests', хотя библиотека вроде бы установлена глобально. В чем вероятная причина?",
+        "expected_answer": "Причина: интерпретатор Python не видит пакет в текущем окружении. Это часто случается, если приложение запускается в виртуальном окружении (venv), которое не активировано или в котором пакет не установлен. Решение: активировать venv и выполнить pip install requests (или pip install -r requirements.txt).",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "21-python-module-not-found.md"
+    },
+    {
+        "id": "q_022",
+        "question": "Node.js выводит предупреждение UnhandledPromiseRejectionWarning. Что это значит и как это исправить в коде?",
+        "expected_answer": "Это означает, что Promise был отклонен (rejected), но ошибка не была обработана. Решение: обернуть асинхронный вызов (await) в блок try/catch или добавить метод .catch() к цепочке Promise. Необработанные ошибки могут привести к завершению процесса в будущих версиях Node.js.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "22-nodejs-unhandled-rejection.md"
+    },
+    {
+        "id": "q_023",
+        "question": "Ошибка \"docker: Got permission denied while trying to connect to the Docker daemon socket\". Как исправить это для текущего пользователя?",
+        "expected_answer": "Текущий пользователь не имеет прав на запись в сокет /var/run/docker.sock. Решение: 1. Добавить пользователя в группу docker: sudo usermod -aG docker $USER. 2. Перелогиниться или выполнить newgrp docker для вступления изменений в силу.",
+        "difficulty": "simple",
+        "category": "configuration",
+        "source_file": "23-docker-permission-denied.md"
+    },
+    {
+        "id": "q_024",
+        "question": "При слиянии веток git сообщает \"Automatic merge failed; fix conflicts and then commit the result\". Каков алгоритм разрешения конфликта?",
+        "expected_answer": "Алгоритм: 1. Открыть файлы с конфликтами. 2. Найти маркеры конфликта (<<<<<<<, =======, >>>>>>>) и вручную оставить нужный код. 3. Сохранить файлы. 4. Добавить их в индекс (git add). 5. Создать коммит слияния (git commit).",
+        "difficulty": "simple",
+        "category": "development",
+        "source_file": "24-git-merge-conflict.md"
+    },
+    {
+        "id": "q_025",
+        "question": "SSH подключение не проходит с ошибкой \"Permission denied (publickey)\". Какие права доступа должны быть установлены на директорию .ssh и файл authorized_keys на сервере?",
+        "expected_answer": "Директория ~/.ssh должна иметь права 700 (drwx------), а файл ~/.ssh/authorized_keys — 600 (-rw-------). Неправильные права (например, доступ на запись другим пользователям) заставят SSHD отклонить ключ.",
+        "difficulty": "medium",
+        "category": "security",
+        "source_file": "25-ssh-permission-denied.md"
+    },
+    {
+        "id": "q_026",
+        "question": "psql не может подключиться к удаленному серверу PostgreSQL с ошибкой \"Connection refused\", хотя сервис запущен. Какой параметр в postgresql.conf нужно проверить?",
+        "expected_answer": "Нужно проверить параметр listen_addresses. По умолчанию он равен 'localhost', что разрешает только локальные подключения. Для доступа по сети нужно установить значение '*' или IP-адрес интерфейса.",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "26-postgres-connection-refused.md"
+    },
+    {
+        "id": "q_027",
+        "question": "Nginx возвращает ошибку \"413 Request Entity Too Large\" при загрузке файла. Какой параметр конфигурации отвечает за лимит размера тела запроса?",
+        "expected_answer": "За это отвечает параметр client_max_body_size. По умолчанию он равен 1МБ. Чтобы загружать большие файлы, нужно увеличить его, например: client_max_body_size 100M; в блоке http, server или location.",
+        "difficulty": "simple",
+        "category": "configuration",
+        "source_file": "27-nginx-413-entity-too-large.md"
+    },
+    {
+        "id": "q_028",
+        "question": "Под в Kubernetes застрял в статусе ImagePullBackOff. Если имя образа верное, что, скорее всего, отсутствует в манифесте Deployment для доступа к приватному реестру?",
+        "expected_answer": "Отсутствует ссылка на секрет для доступа к реестру (imagePullSecrets). Kubernetes не может авторизоваться в приватном Docker Registry без предоставления соответствующих credentials.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "28-k8s-imagepullbackoff.md"
+    },
+    {
+        "id": "q_029",
+        "question": "Ansible play падает с UNREACHABLE. Если SSH доступен, то какой зависимости может не хватать на целевом хосте для выполнения модулей Ansible?",
+        "expected_answer": "Может не хватать интерпретатора Python. Ansible (кроме raw модуля) требует установленного Python на управляемом узле. Решение: установить python через raw модуль.",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "29-ansible-host-unreachable.md"
+    },
+    {
+        "id": "q_030",
+        "question": "В ADR-005 почему для кеширования был выбран Redis, а не Memcached?",
+        "expected_answer": "Redis выбрали из-за поддержки сложных структур данных, встроенной поддержки Lua-скриптов и механизма Pub/Sub, который необходим для инвалидации кеша. Memcached поддерживает только простые строки и не имеет этих возможностей.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "adr-005-redis-cache.md"
+    },
+    {
+        "id": "q_031",
+        "question": "Почему для распределенной трассировки был выбран Jaeger (Open Source) вместо Datadog (SaaS)?",
+        "expected_answer": "Причины выбора Jaeger: 1. Безопасность: требования запрещают передачу полных трасс в внешние SaaS на этапе разработки. 2. Стоимость: желание избежать высоких расходов на Datadog. 3. Полный контроль над данными. Архитектура внедрения включает OpenTelemetry Collector и Elasticsearch.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "adr-006-tracing.md"
+    },
+    {
+        "id": "q_032",
+        "question": "В сравнении ArgoCD и Flux CD, какой инструмент был выбран для продуктовых команд и почему?",
+        "expected_answer": "Был выбран ArgoCD. Главная причина — наличие мощного веб-интерфейса (Web UI), который визуализирует состояние ресурсов и снижает порог входа для разработчиков, в отличие от Flux CD, который работает только через CLI/Git.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "adr-007-gitops.md"
+    },
+    {
+        "id": "q_033",
+        "question": "В чем ключевое архитектурное отличие Apache Pulsar от Apache Kafka, упомянутое в сравнении платформ?",
+        "expected_answer": "Ключевое отличие — архитектура хранения. Pulsar использует разделенную архитектуру: Compute (Brokers) отделен от Storage (BookKeeper). Kafka использует монолитную архитектуру, где брокер хранит данные на локальном диске, что усложняет масштабирование.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "adr-008-pulsar-vs-kafka.md"
+    },
+    {
+        "id": "q_034",
+        "question": "В ADR-009, какое основное преимущество протокола gRPC перед REST (JSON) стало решающим для его внедрения?",
+        "expected_answer": "Решающие преимущества: 1. Производительность: бинарный формат Protobuf компактнее и быстрее JSON в разы (сериализация быстрее в ~6.7x). 2. Использование HTTP/2 (мультиплексирование). 3. Строгая типизация и кодогенерация.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "adr-009-grpc-standard.md"
+    },
+    {
+        "id": "q_035",
+        "question": "Какой HTTP метод и эндпоинт используется в сервисе аналитики для приема событий (ingest)?",
+        "expected_answer": "Используется HTTP метод POST и эндпоинт /ingest. Пример тела запроса включает event_type, user_id и timestamp.",
+        "difficulty": "simple",
+        "category": "api",
+        "source_file": "analytics-api-docs.md"
+    },
+    {
+        "id": "q_036",
+        "question": "Какая команда Ansible используется для освобождения места, занимаемого неиспользуемыми Docker образами и контейнерами?",
+        "expected_answer": "Используется команда 'docker system prune -af'. Она удаляет все остановленные контейнеры, неиспользуемые сети и образы (включая те, что не являются dangling, благодаря флагу -a).",
+        "difficulty": "simple",
+        "category": "operations",
+        "source_file": "ansible-cleanup.md"
+    },
+    {
+        "id": "q_037",
+        "question": "В обновлении Ansible роли Redis v2.5.0, какой параметр Sentinel теперь можно настраивать через переменные?",
+        "expected_answer": "Теперь можно настраивать параметр failover-timeout (время, после которого Sentinel считает мастер недоступным и начинает переключение).",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "ansible-redis-release.md"
+    },
+    {
+        "id": "q_038",
+        "question": "Что возвращает метод /api/login сервиса авторизации при успешной аутентификации?",
+        "expected_answer": "При успехе возвращает статус 200 и JSON объект, содержащий поля 'token' (JWT строка) и 'expires_in' (время жизни токена).",
+        "difficulty": "simple",
+        "category": "api",
+        "source_file": "auth-api-docs.md"
+    },
+    {
+        "id": "q_039",
+        "question": "При деплое AWS Lambda на Python, если скрипт использует сторонние библиотеки (например, requests), что нужно сделать с ними перед созданием функции?",
+        "expected_answer": "Необходимо установить зависимости локально в директорию с кодом функции (используя pip install package -t .), а затем упаковать всё содержимое директории (код + библиотеки) в ZIP-архив для загрузки в AWS.",
+        "difficulty": "medium",
+        "category": "cloud",
+        "source_file": "aws-lambda-python-guide.md"
+    },
+    {
+        "id": "q_040",
+        "question": "Зачем при настройке S3 бакета для Terraform State необходимо создавать таблицу DynamoDB?",
+        "expected_answer": "Таблица DynamoDB необходима для реализации механизма блокировок (State Locking). Это предотвращает одновременное запущение terraform apply несколькими пользователями, что могло бы привести к повреждению файла состояния.",
+        "difficulty": "medium",
+        "category": "infrastructure",
+        "source_file": "aws-s3-terraform.md"
+    },
+    {
+        "id": "q_041",
+        "question": "В инциденте с Azure Database for MySQL, какая мера была принята на уровне приложения для mitigating проблемы Connection reset?",
+        "expected_answer": "Были приняты следующие меры: 1. Внедрен экспоненциальный откат (exponential backoff) для Retry Logic (логики повторных попыток). 2. Уменьшен таймаут подключения (connectTimeout) до 5 секунд для быстрого обнаружения сбоев.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "azure-db-incident.md"
+    },
+    {
+        "id": "q_042",
+        "question": "В файле со старыми конфигурациями (backup_config_old) упоминается временное решение, которое работает уже 3 года. Кому нужно звонить, если \"оно упадет\"?",
+        "expected_answer": "Нужно звонить Васе. В файле указано: \"Если упадет — звоните Васе, он знает что делать.\"",
+        "difficulty": "hard",
+        "category": "general",
+        "source_file": "backup_config_old.md"
+    },
+    {
+        "id": "q_043",
+        "question": "При миграции инфраструктуры с физических серверов в Kubernetes, какой подход к миграции баз данных (\"Data First\") рекомендуется?",
+        "expected_answer": "Рекомендуется подход из 3 этапов: 1. Setup Replica (создание реплики в облаке). 2. Sync (настройка стабильной репликации). 3. Switchover (кратковременная остановка записи и переключение мастера на облако).",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "bare-metal-to-k8s-migration.md"
+    },
+    {
+        "id": "q_044",
+        "question": "Какая стратегия компакции (compaction strategy) в Cassandra привела к проблеме OOM на больших таблицах и на какую стратегию её рекомендовали заменить?",
+        "expected_answer": "Проблему вызвала SizeTieredCompactionStrategy (STCS), которая пыталась объединить огромные SSTables. Рекомендовано заменить её на LeveledCompactionStrategy (LCS) для таблиц с частыми чтениями, а также ограничить concurrent_compactors.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "cassandra-compaction-fail.md"
+    },
+    {
+        "id": "q_045",
+        "question": "В плане аварийного восстановления Cassandra, какой инструмент рекомендуется использовать для восстановления данных в новом регионе при изменении топологии кластера?",
+        "expected_answer": "Рекомендуется использовать sstableloader. Это наиболее надежный способ загрузки данных (токены распределяются корректно) при изменении количества нод или топологии кластера.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "cassandra-dr-runbook.md"
+    },
+    {
+        "id": "q_046",
+        "question": "В файле с дебаг-логами чата (chat_export_debug), какое сообщение об ошибке таймаута встречается чаще всего?",
+        "expected_answer": "Чаще всего встречаются сообщения \"Connection timeout\" с значениями 10ms, 500ms и 1s. Логи содержат уровни WARN, ERROR и INFO для этих событий.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "chat_export_debug.md"
+    },
+    {
+        "id": "q_047",
+        "question": "Почему было принято решение мигрировать обратно с Podman на Docker, несмотря на безопасность Podman?",
+        "expected_answer": "Причины возврата на Docker: 1. Нестабильность Podman Compose для сложных сетей. 2. Медленная сборка образов через buildah. 3. Проблемы совместимости скриптов CI/CD, жестко завязанных на /var/run/docker.sock.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "container-migration.md"
+    },
+    {
+        "id": "q_048",
+        "question": "При миграции базы данных из MySQL в PostgreSQL с помощью AWS DMS, почему рекомендуется создавать индексы на целевой БД только ПОСЛЕ завершения переноса данных?",
+        "expected_answer": "Потому что наличие индексов во время активной записи (Full Load) создает значительную нагрузку (insertion overhead), замедляя процесс миграции. Эффективнее создать их после переноса данных.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "db-migration-rds.md"
+    },
+    {
+        "id": "q_049",
+        "question": "В логах отладки Kafka (debug_logs_kafka) с каким интервалом или значением чаще всего выпадает Connection timeout в WARN/ERROR сообщениях?",
+        "expected_answer": "В логах часто фигурируют значения таймаута 10ms и 500ms. Ошибки (ERROR) и предупреждения (WARN) с этими значениями повторяются многократно.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "debug_logs_kafka.md"
+    },
+    {
+        "id": "q_050",
+        "question": "При миграции с Apache на Nginx, как изменяется правило Rewrite? (Приведите пример концептуального отличия в синтаксисе).",
+        "expected_answer": "В Apache правила RewriteRule находятся в файлах .htaccess (или httpd.conf). В Nginx .htaccess не поддерживается, и правила переписываются с использованием директивы rewrite (или return) внутри блоков location в nginx.conf.",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "deprecated-apache.md"
+    },
+    {
+        "id": "q_051",
+        "question": "В файле заметок (dump_postgres_schema_notes) многократно встречается предупреждение о конфигурации для продакшена. Какая фраза используется?",
+        "expected_answer": "Фраза: \"Конфиг для проды, не трогать!\". Эта фраза встречается в файле несколько раз как предупреждение перед важными конфигурационными блоками.",
+        "difficulty": "medium",
+        "category": "general",
+        "source_file": "dump_postgres_schema_notes.md"
+    },
+    {
+        "id": "q_052",
+        "question": "Какую команду kubectl нужно выполнить перед drain, чтобы запретить планирование новых подов на узел?",
+        "expected_answer": "Нужно выполнить команду 'kubectl cordon <node-name>'. Это помечает узел как SchedulingDisabled.",
+        "difficulty": "simple",
+        "category": "operations",
+        "source_file": "eks-node-draining.md"
+    },
+    {
+        "id": "q_053",
+        "question": "Почему при настройке Heap Size для Elasticsearch не рекомендуется превышать пороговое значение в ~31-32 GB?",
+        "expected_answer": "Превышение порога в ~31-32GB (точнее, когда перестают работать Compressed OOPs) заставляет JVM использовать 64-битные указатели вместо 32-битных, что значительно увеличивает потребление памяти (overhead) и снижает производительность.",
+        "difficulty": "medium",
+        "category": "tuning",
+        "source_file": "elasticsearch-heap-tuning.md"
+    },
+    {
+        "id": "q_054",
+        "question": "Какой сборщик мусора (GC) рекомендуется использовать для Elasticsearch версий 7.x и выше?",
+        "expected_answer": "Рекомендуется использовать G1GC (Garbage First Garbage Collector), особенно для современных версий JDK (17+).",
+        "difficulty": "simple",
+        "category": "tuning",
+        "source_file": "es-jvm-tuning.md"
+    },
+    {
+        "id": "q_055",
+        "question": "Какая ошибка конфигурации привела к OOM (Out Of Memory) на ноде Elasticsearch в инциденте от 25 декабря?",
+        "expected_answer": "Ошибка заключалась в выполнении \"тяжелого\" аналитического запроса с агрегацией (Terms aggregation) по полю высокой кардинальности (customer_id) без использования фильтров или composite aggregation, что привело к исчерпанию Heap памяти из-за огромной хеш-таблицы.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "es-oom-incident.md"
+    },
+    {
+        "id": "q_056",
+        "question": "Для ускорения индексации тяжелых логов в Elasticsearch, какое значение index.refresh_interval рекомендуется установить вместо дефолтной 1 секунды?",
+        "expected_answer": "Рекомендуется увеличить значение index.refresh_interval до 30 секунд (\"30s\"). Это уменьшает частоту сброса буферов и создания новых сегментов Lucene, что существенно повышает пропускную способность записи.",
+        "difficulty": "medium",
+        "category": "tuning",
+        "source_file": "es-tuning.md"
+    },
+    {
+        "id": "q_057",
+        "question": "В API финансового шлюза, какой заголовок используется для обеспечения идемпотентности запросов во избежание дублирования транзакций?",
+        "expected_answer": "Используется заголовок `X-Idempotency-Key`. Он гарантирует, что повторный запрос с тем же ключом не создаст дублирующую транзакцию в течение 24 часов.",
+        "difficulty": "medium",
+        "category": "api",
+        "source_file": "financial-gateway-api-docs.md"
+    },
+    {
+        "id": "q_058",
+        "question": "Какой ресурс Terraform используется для создания виртуальной машины в GCP (Google Compute Engine)?",
+        "expected_answer": "Для создания виртуальной машины используется ресурс `google_compute_instance`.",
+        "difficulty": "simple",
+        "category": "iac",
+        "source_file": "gcp-terraform-guide.md"
+    },
+    {
+        "id": "q_059",
+        "question": "Какую переменную окружения необходимо установить для аутентификации Terraform провайдера Google с использованием JSON ключа сервисного аккаунта?",
+        "expected_answer": "Необходимо установить переменную окружения `GOOGLE_APPLICATION_CREDENTIALS`, указывающую на путь к JSON-файлу ключа сервисного аккаунта.",
+        "difficulty": "simple",
+        "category": "iac",
+        "source_file": "gcp-terraform-setup.md"
+    },
+    {
+        "id": "q_060",
+        "question": "В примере GitHub Actions для Go, какие секреты (secrets) необходимо добавить в репозиторий для успешной публикации Docker-образа в DockerHub?",
+        "expected_answer": "Необходимо добавить два секрета: `DOCKERHUB_USERNAME` (имя пользователя) и `DOCKERHUB_TOKEN` (токен доступа или пароль).",
+        "difficulty": "simple",
+        "category": "ci/cd",
+        "source_file": "github-actions-go.md"
+    },
+    {
+        "id": "q_061",
+        "question": "В релизе GitLab CI v2.1.0, какой метод аутентификации в AWS теперь используется вместо долгоживущих ключей?",
+        "expected_answer": "Используется OpenID Connect (OIDC Auth) вместо долгоживущих ключей для аутентификации пайплайнов в AWS.",
+        "difficulty": "medium",
+        "category": "security",
+        "source_file": "gitlab-ci-release-v2.1.0.md"
+    },
+    {
+        "id": "q_062",
+        "question": "Какая метрика Prometheus наиболее полезна для обнаружения утечек памяти (memory leak) в Go-приложении?",
+        "expected_answer": "Наиболее полезна метрика `go_memstats_heap_inuse_bytes`. Если этот график демонстрирует постоянный рост без возврата к базовому уровню после сборки мусора (GC), это указывает на утечку памяти.",
+        "difficulty": "medium",
+        "category": "monitoring",
+        "source_file": "go-performance.md"
+    },
+    {
+        "id": "q_063",
+        "question": "Для устранения ошибок 503 при высокой нагрузке в HAProxy, какие параметры ядра Linux (sysctl) рекомендуется увеличить для поддержки большого количества соединений?",
+        "expected_answer": "Рекомендуется увеличить: 1. `net.core.somaxconn` (размер очереди прослушиваемых соединений) до 65535. 2. `net.ipv4.ip_local_port_range` (диапазон локальных портов) до 1024-65000.",
+        "difficulty": "hard",
+        "category": "tuning",
+        "source_file": "haproxy-503-troubleshoot.md"
+    },
+    {
+        "id": "q_064",
+        "question": "Какой метод реализации \"липких сессий\" (sticky sessions) в HAProxy считается самым надежным и не требует изменения приложения?",
+        "expected_answer": "Самым надежным считается метод Cookie Insertion (`cookie SRVNAME insert indirect nocache`). В этом случае HAProxy сам добавляет cookie с именем сервера в ответ клиенту.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "haproxy-l7-deep-dive.md"
+    },
+    {
+        "id": "q_065",
+        "question": "Какая фраза о надежности \"временного решения\" повторяется в заметках incident_notes_june.md?",
+        "expected_answer": "Фраза: \"Это временное решение (работает уже 3 года)\".",
+        "difficulty": "medium",
+        "category": "general",
+        "source_file": "incident_notes_june.md"
+    },
+    {
+        "id": "q_066",
+        "question": "В обновлении инфраструктуры v5.0.0, какое решение Service Mesh было выбрано для замены кастомных решений?",
+        "expected_answer": "Было выбрано решение Istio версии 1.20.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "infra-v5-release-notes.md"
+    },
+    {
+        "id": "q_067",
+        "question": "В релизе Nginx Ingress Controller v1.9.0, какое изменение было внесено для повышения безопасности запуска процессов Nginx?",
+        "expected_answer": "Добавлена поддержка запуска Nginx в chroot среде, что изолирует процесс и повышает безопасность.",
+        "difficulty": "medium",
+        "category": "security",
+        "source_file": "ingress-release.md"
+    },
+    {
+        "id": "q_068",
+        "question": "В API сервиса инвентаря, какой код состояния HTTP автоматически генерирует FastAPI, если входящий JSON не соответствует схеме Pydantic?",
+        "expected_answer": "Генерируется код 422 Unprocessable Entity.",
+        "difficulty": "simple",
+        "category": "api",
+        "source_file": "inventory-api-docs.md"
+    },
+    {
+        "id": "q_069",
+        "question": "При запуске Java в Docker-контейнере, какой флаг JVM рекомендуется использовать для ограничения использования памяти в процентах от лимита контейнера (Cgroup aware)?",
+        "expected_answer": "Рекомендуется использовать флаг `-XX:MaxRAMPercentage` (например, `-XX:MaxRAMPercentage=75.0`).",
+        "difficulty": "medium",
+        "category": "tuning",
+        "source_file": "java-docker-tuning.md"
+    },
+    {
+        "id": "q_070",
+        "question": "В описанном Enterprise CI/CD пайплайне для Java, какой инструмент используется для синхронизации изменений из Git в Kubernetes (GitOps)?",
+        "expected_answer": "Используется ArgoCD. Пайплайн обновляет манифесты в Git-репозитории, а ArgoCD синхронизирует эти изменения с кластером.",
+        "difficulty": "simple",
+        "category": "ci/cd",
+        "source_file": "java-enterprise-cicd.md"
+    },
+    {
+        "id": "q_071",
+        "question": "Какая уязвимость конфигурации Kubernetes Dashboard позволяет любому пользователю получить права cluster-admin без аутентификации?",
+        "expected_answer": "Уязвимость заключается в запуске Dashboard с аргументом `--enable-skip-login`, что позволяет пропускать экран входа.",
+        "difficulty": "medium",
+        "category": "security",
+        "source_file": "k8s-dashboard-security.md"
+    },
+    {
+        "id": "q_072",
+        "question": "При настройке алертинга в Prometheus Operator через values.yaml, какой параметр в секции global определяет URL для отправки уведомлений в Slack?",
+        "expected_answer": "Параметр `slack_api_url` в секции `global`.",
+        "difficulty": "simple",
+        "category": "monitoring",
+        "source_file": "k8s-monitoring-setup.md"
+    },
+    {
+        "id": "q_073",
+        "question": "Для обеспечения гарантии порядка обработки событий одного заказа (Ordering guarantee) в Kafka, какой ключ партиционирования был выбран в стратегии для Go-сервиса?",
+        "expected_answer": "Был выбран ключ `business_id` (в коде также упоминается как `order_id`), используемый с Consistent Hashing.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "kafka-cluster-partitioning-strategy.md"
+    },
+    {
+        "id": "q_074",
+        "question": "Какая настройка Zookeeper стала причиной Split-Brain в кластере Kafka во время инцидента 10 декабря?",
+        "expected_answer": "Причиной стало слишком низкое значение параметра `zookeeper.session.timeout.ms` (6 секунд), что приводило к истечению сессий при сетевых задержках.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "kafka-incident-december.md"
+    },
+    {
+        "id": "q_075",
+        "question": "Почему увеличение количества партиций в Kafka считается \"дорогой в один конец\"?",
+        "expected_answer": "Потому что уменьшить количество партиций невозможно без полного пересоздания топика и потери/миграции данных.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "kafka-partitioning.md"
+    },
+    {
+        "id": "q_076",
+        "question": "В \"грязных\" заметках об обновлении Terraform модуля S3 (v4.0.0), какой флаг нужно явно добавить, если бакет должен оставаться публичным?",
+        "expected_answer": "Нужно явно добавить флаг `force_public = true`, так как по умолчанию модуль теперь блокирует публичный доступ.",
+        "difficulty": "simple",
+        "category": "iac",
+        "source_file": "legacy-notes.md"
+    },
+    {
+        "id": "q_077",
+        "question": "В руководстве по тюнингу сети Linux, какой алгоритм контроля перегрузки (congestion control) рекомендуется использовать вместо стандартного CUBIC для современных сетей?",
+        "expected_answer": "Рекомендуется использовать алгоритм **BBR** (Bottleneck Bandwidth and RTT).",
+        "difficulty": "hard",
+        "category": "tuning",
+        "source_file": "linux-network-performance-tuning.md"
+    },
+    {
+        "id": "q_078",
+        "question": "В Grafana Loki, почему следует избегать использования большого количества уникальных меток (High Cardinality)?",
+        "expected_answer": "Loki индексирует только метаданные (label), а не содержимое логов. Высокая кардинальность меток приводит к раздуванию индекса и замедлению работы системы.",
+        "difficulty": "medium",
+        "category": "monitoring",
+        "source_file": "loki-investigation.md"
+    },
+    {
+        "id": "q_079",
+        "question": "В \"ручных\" инструкциях по установке (manual_install_steps), какая команда используется для перезапуска Nginx (повторяется многократно)?",
+        "expected_answer": "Команда `systemctl restart nginx`.",
+        "difficulty": "simple",
+        "category": "operations",
+        "source_file": "manual_install_steps.md"
+    },
+    {
+        "id": "q_080",
+        "question": "В плане миграции с RabbitMQ на NATS JetStream, какой протокол репликации использует NATS JetStream?",
+        "expected_answer": "NATS JetStream использует протокол **Raft** для репликации.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "migration-mq.md"
+    },
+    {
+        "id": "q_081",
+        "question": "В файле migration_todo_list многократно встречаются логи тайм-аута. Какое сообщение об ошибке (ERROR/WARN) там доминирует?",
+        "expected_answer": "Доминирует сообщение \"Connection timeout\" с различными интервалами (10ms, 500ms, 1s).",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "migration_todo_list.md"
+    },
+    {
+        "id": "q_082",
+        "question": "Почему переменные окружения MONGO_INITDB_ROOT_PASSWORD в Docker Compose могут не сработать для изменения пароля существующей базы данных?",
+        "expected_answer": "Эти переменные работают только при первой инициализации контейнера, когда папка данных пуста. Если база уже создана, изменение переменных не повлияет на существующий пароль.",
+        "difficulty": "medium",
+        "category": "database",
+        "source_file": "mongo-auth-error.md"
+    },
+    {
+        "id": "q_083",
+        "question": "При миграции MongoDB в Kubernetes с использованием StatefulSet, какая утилита используется для создания дампа данных на старом сервере?",
+        "expected_answer": "Используется утилита `mongodump`.",
+        "difficulty": "simple",
+        "category": "migration",
+        "source_file": "mongodb-to-k8s-migration.md"
+    },
+    {
+        "id": "q_084",
+        "question": "При запуске Nginx, о чем говорит ошибка bind() to 0.0.0.0:80 failed (98: Address already in use)?",
+        "expected_answer": "Эта ошибка указывает на то, что порт 80 уже занят другим процессом (например, Apache или другим экземпляром Nginx).",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "nginx-emergency.md"
+    },
+    {
+        "id": "q_085",
+        "question": "Какой заголовок HTTP необходимо добавить в конфигурацию Nginx для включения HSTS (HTTP Strict Transport Security)?",
+        "expected_answer": "Необходимо добавить заголовок `Strict-Transport-Security` (например, `add_header Strict-Transport-Security \"max-age=63072000\" always;`).",
+        "difficulty": "medium",
+        "category": "security",
+        "source_file": "nginx-tls-security.md"
+    },
+    {
+        "id": "q_086",
+        "question": "При настройке сжатия Brotli в Nginx, почему не рекомендуется устанавливать уровень сжатия (brotli_comp_level) выше 6?",
+        "expected_answer": "Потому что дальнейшее увеличение уровня сжатия дает минимальный выигрыш в размере, но приводит к резкому росту нагрузки на CPU.",
+        "difficulty": "medium",
+        "category": "tuning",
+        "source_file": "nginx-tuning-compression.md"
+    },
+    {
+        "id": "q_087",
+        "question": "Какая уязвимость в базовом образе node:18-alpine потребовала обновления до версии node:18.19.0-alpine3.18?",
+        "expected_answer": "Критическая уязвимость в библиотеке `zlib`, позволяющая выполнить DoS-атаку.",
+        "difficulty": "medium",
+        "category": "security",
+        "source_file": "node-security-vulnerability-patched.md"
+    },
+    {
+        "id": "q_088",
+        "question": "В файле черновиков (notes_draft.md), какая команда Docker часто упоминается для поиска остановленных контейнеров?",
+        "expected_answer": "Команда `docker ps -a | grep Exited`.",
+        "difficulty": "simple",
+        "category": "operations",
+        "source_file": "notes_draft.md"
+    },
+    {
+        "id": "q_089",
+        "question": "В API микросервиса уведомлений, какой скрипт занимается непосредственной отправкой писем через SMTP, если сервис возвращает ошибку 404?",
+        "expected_answer": "Скрипт `mail-daemon.py`.",
+        "difficulty": "medium",
+        "category": "api",
+        "source_file": "notif-api-docs.md"
+    },
+    {
+        "id": "q_090",
+        "question": "При миграции с Jenkins на GitLab CI, как рекомендуется скрывать секретные переменные в логах сборки GitLab?",
+        "expected_answer": "Рекомендуется отметить переменные как `Masked` в настройках CI/CD (Settings -> CI/CD -> Variables).",
+        "difficulty": "medium",
+        "category": "migration",
+        "source_file": "old-scripts.md"
+    },
+    {
+        "id": "q_091",
+        "question": "Какой HTTP-заголовок обязателен для всех запросов к Payment Service API (v2)?",
+        "expected_answer": "Обязателен заголовок `X-API-Key`.",
+        "difficulty": "simple",
+        "category": "api",
+        "source_file": "payment-api-docs.md"
+    },
+    {
+        "id": "q_092",
+        "question": "В пост-мортеме инцидента с БД PostgreSQL от 28 декабря, какой параметр конфигурации пула соединений HikariCP был пропущен, что привело к неограниченному росту коннектов?",
+        "expected_answer": "Был пропущен параметр `maximumPoolSize`, что позволило пулу соединений расти бесконечно.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "post-mortem-db-failure.md"
+    },
+    {
+        "id": "q_093",
+        "question": "Какая ошибка в Go-коде сервиса \"Order-Service\" привела к утечке соединений Redis в кластере EKS?",
+        "expected_answer": "Ошибка заключалась в неправильной логике `defer conn.Close()`: в некоторых ситуациях код выходил по таймауту до того, как срабатывал `defer`, оставляя соединение открытым.",
+        "difficulty": "hard",
+        "category": "debugging",
+        "source_file": "post-mortem-eks-redis-leak.md"
+    },
+    {
+        "id": "q_094",
+        "question": "Какой инструмент рекомендуется использовать для физического бэкапа высоконагруженных баз данных PostgreSQL вместо pg_dump?",
+        "expected_answer": "Рекомендуется использовать `Wal-G` (или `pg_backrest`) для физических бэкапов.",
+        "difficulty": "medium",
+        "category": "database",
+        "source_file": "postgres-backup.md"
+    },
+    {
+        "id": "q_095",
+        "question": "Какая команда SQL позволяет создать новый индекс без блокировки таблицы на запись в PostgreSQL?",
+        "expected_answer": "Команда `CREATE INDEX CONCURRENTLY`.",
+        "difficulty": "medium",
+        "category": "database",
+        "source_file": "postgres-reindex-runbook.md"
+    },
+    {
+        "id": "q_096",
+        "question": "Если в логах Nginx появляется сообщение upstream prematurely closed connection и пользователь получает ошибку 502, какой параметр timeout рекомендуется увеличить?",
+        "expected_answer": "Рекомендуется увеличить `proxy_read_timeout` (а также `proxy_connect_timeout` и `proxy_send_timeout`).",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "quick-notes.md"
+    },
+    {
+        "id": "q_097",
+        "question": "В API обертке над RabbitMQ, какой заголовок сообщения обязателен для трассировки запросов в Jaeger?",
+        "expected_answer": "Обязателен заголовок `correlation_id`.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "rabbit-mq-internal-api.md"
+    },
+    {
+        "id": "q_098",
+        "question": "При настройке безопасности Redis, какую директиву конфигурации нужно установить в yes, чтобы запретить доступ с внешних интерфейсов по умолчанию?",
+        "expected_answer": "Директиву `protected-mode` (значение `yes`).",
+        "difficulty": "simple",
+        "category": "security",
+        "source_file": "redis-security.md"
+    },
+    {
+        "id": "q_099",
+        "question": "В логах Redis Sentinel, какое ключевое слово обозначает, что мастер объективно (objectively) считается недоступным кворумом стражей?",
+        "expected_answer": "Ключевое слово `+odown`.",
+        "difficulty": "hard",
+        "category": "monitoring",
+        "source_file": "redis-sentinel-issues.md"
+    },
+    {
+        "id": "q_100",
+        "question": "В релизе CI/CD Pipeline v3.2.0, какая опция GitLab CI была добавлена для экономии ресурсов раннеров при частых пушах?",
+        "expected_answer": "Опция `interruptible: true`.",
+        "difficulty": "medium",
+        "category": "ci/cd",
+        "source_file": "release-v3.2.0.md"
+    },
+    {
+        "id": "q_101",
+        "question": "В обновлении SaltStack v2024.12, какой модуль теперь используется для управления фаерволом вместо iptables?",
+        "expected_answer": "Используется модуль `nftables`.",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "salt-stuff.md"
+    },
+    {
+        "id": "q_102",
+        "question": "Какая утилита командной строки рекомендуется для проверки наличия уязвимости TLS 1.1 на Java-сервисах?",
+        "expected_answer": "Рекомендуется `openssl` (команда `openssl s_client -connect my-service.internal:443 -tls1_1`).",
+        "difficulty": "simple",
+        "category": "security",
+        "source_file": "security.md"
+    },
+    {
+        "id": "q_103",
+        "question": "Согласно SRE Handbook, какие три обязательных поля должны присутствовать в JSON-логах всех сервисов (помимо app_name и env)?",
+        "expected_answer": "Обязательные поля: `trace_id`, `user_id`, `severity`.",
+        "difficulty": "medium",
+        "category": "standards",
+        "source_file": "sre-engineering-handbook.md"
+    },
+    {
+        "id": "q_104",
+        "question": "Какой параметр в sshd_config необходимо установить в no, чтобы запретить вход пользователя root по SSH?",
+        "expected_answer": "Параметр `PermitRootLogin no`.",
+        "difficulty": "simple",
+        "category": "security",
+        "source_file": "ssh-security.md"
+    },
+    {
+        "id": "q_105",
+        "question": "При диагностике Kafka Consumer Lag в Docker, какая настройка Kafka часто является причиной проблем с подключением клиентов извне (сетевые задержки)?",
+        "expected_answer": "Настройка `KAFKA_ADVERTISED_LISTENERS`.",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "stream-debug.md"
+    },
+    {
+        "id": "q_106",
+        "question": "В чем заключается опасность использования подстановочных знаков (wildcards) вроде /usr/bin/find * в файле /etc/sudoers?",
+        "expected_answer": "Опасность в том, что пользователь может передать параметры (например, через `-exec` в find), позволяющие запустить шелл (shell) с правами root.",
+        "difficulty": "hard",
+        "category": "security",
+        "source_file": "sudoers-security-vulnerability.md"
+    },
+    {
+        "id": "q_107",
+        "question": "В файле temp_auth_fix.md (Messy), какая фраза используется как оправдание для использования временного решения, которое работает уже 3 года?",
+        "expected_answer": "Используется фраза \"(работает уже 3 года)\".",
+        "difficulty": "simple",
+        "category": "general",
+        "source_file": "temp_auth_fix.md"
+    },
+    {
+        "id": "q_108",
+        "question": "Какие права доступа (chmod) должны быть установлены на файл acme.json в Traefik для корректной работы Let's Encrypt?",
+        "expected_answer": "Права доступа `600` (чтение и запись только владельцем).",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "traefik-ssl-fail.md"
+    },
+    {
+        "id": "q_109",
+        "question": "Какая корневая причина привела к глобальному отказу HashiCorp Vault 15 декабря (согласно пост-мортему)?",
+        "expected_answer": "Корневой причиной стало истечение срока действия Root CA сертификата (выданного на 730 дней), который не обновлялся автоматически и не мониторился.",
+        "difficulty": "medium",
+        "category": "post-mortem",
+        "source_file": "vault-root-ca-expiration.md"
+    },
+    {
+        "id": "q_110",
+        "question": "Какое назначение файла указано в первой строке документа README_OLD.md?",
+        "expected_answer": "Назначение: \"CONF FILE FOR CRONTAB BACKUP\".",
+        "difficulty": "simple",
+        "category": "legacy",
+        "source_file": "README_OLD.md"
+    },
+    {
+        "id": "q_111",
+        "question": "Как включить шифрование S3 в модуле v4.0.0?",
+        "expected_answer": "В данном документе (legacy-notes.md) не упоминается возможность или инструкция по включению шифрования S3.",
+        "difficulty": "medium",
+        "category": "negative",
+        "source_file": "legacy-notes.md"
+    },
+    {
+        "id": "q_112",
+        "question": "Какая команда используется для безопасной перезагрузки сервера?",
+        "expected_answer": "В тексте явно сказано: \"Внимание! Не перезагружать сервер без спроса!\", команда для безопасной перезагрузки не приведена.",
+        "difficulty": "simple",
+        "category": "negative",
+        "source_file": "temp_auth_fix.md"
+    },
+    {
+        "id": "q_113",
+        "question": "Где находится файл конфигурации для восстановления бэкапа?",
+        "expected_answer": "Информация отсутствует. Файл описан как \"CONF FILE FOR CRONTAB BACKUP\", но путь к конфигу для восстановления не указан.",
+        "difficulty": "simple",
+        "category": "negative",
+        "source_file": "README_OLD.md"
+    },
+    {
+        "id": "q_114",
+        "question": "Какой конкретно скрипт нужно запустить для миграции схемы базы данных?",
+        "expected_answer": "Скрипт миграции не указан. В тексте присутствуют только SQL-запросы (SELECT) и общие фразы про миграцию.",
+        "difficulty": "medium",
+        "category": "negative",
+        "source_file": "migration_todo_list.md"
+    },
+    {
+        "id": "q_115",
+        "question": "Какой телефон у Васи для экстренной связи?",
+        "expected_answer": "Телефон не указан. В тексте есть только рекомендация \"звоните Васе\", но номер отсутствует.",
+        "difficulty": "simple",
+        "category": "negative",
+        "source_file": "backup_config_old.md"
+    },
+    {
+        "id": "q_116",
+        "question": "Какое значение по умолчанию для переменной bucket_location?",
+        "expected_answer": "Переменная `bucket_location` не упоминается в данном списке изменений.",
+        "difficulty": "medium",
+        "category": "negative",
+        "source_file": "legacy-notes.md"
+    },
+    {
+        "id": "q_117",
+        "question": "Какой ID процесса (PID) у Nginx?",
+        "expected_answer": "В тексте нет информации о PID процессов, упоминаются только команды управления сервисом (systemctl).",
+        "difficulty": "simple",
+        "category": "negative",
+        "source_file": "notes_draft.md"
+    },
+    {
+        "id": "q_118",
+        "question": "В каком файле находятся логи Nginx согласно инструкции?",
+        "expected_answer": "Путь к логам Nginx не указан. Упоминается только общий системный лог `/var/log/syslog`.",
+        "difficulty": "medium",
+        "category": "negative",
+        "source_file": "temp_auth_fix.md"
+    },
+    {
+        "id": "q_119",
+        "question": "В какой namespace Kubernetes нужно перенести приложение?",
+        "expected_answer": "Конкретный namespace не указан. Есть только общая фраза \"Надо бы перенести это в кубер\".",
+        "difficulty": "simple",
+        "category": "negative",
+        "source_file": "migration_todo_list.md"
+    },
+    {
+        "id": "q_120",
+        "question": "Сколько места на диске занимает бэкап?",
+        "expected_answer": "Информация о размере бэкапа в данном файле отсутствует.",
+        "difficulty": "simple",
+        "category": "negative",
+        "source_file": "backup_config_old.md"
+    },
+    {
+        "id": "q_121",
+        "question": "Если pg_terminate_backend не помогает снять блокировку, какой метод предлагается использовать следующим (согласно тексту)?",
+        "expected_answer": "Согласно тексту документа, предлагается использовать `pg_cancel_backend` (хотя технически это менее жесткий метод, в документе он указан как следующий шаг).",
+        "difficulty": "medium",
+        "category": "reasoning",
+        "source_file": "01-postgresql-deadlock.md"
+    },
+    {
+        "id": "q_122",
+        "question": "Укажите точное время (timestamp) первого появления сообщения с уровнем 'ERROR' и текстом 'Connection timeout'.",
+        "expected_answer": "2025-12-29T18:56:44.972189",
+        "difficulty": "hard",
+        "category": "reasoning",
+        "source_file": "debug_logs_kafka.md"
+    },
+    {
+        "id": "q_123",
+        "question": "Во сколько раз быстрее происходит десериализация Protobuf по сравнению с JSON согласно синтетическим тестам?",
+        "expected_answer": "В ~6 раз (25 μs против 150 μs).",
+        "difficulty": "medium",
+        "category": "reasoning",
+        "source_file": "adr-009-grpc-standard.md"
+    },
+    {
+        "id": "q_124",
+        "question": "Какой именно параметр конфигурации отсутствовал в billing-service, что стало одной из корневых причин инцидента?",
+        "expected_answer": "Отсутствовал параметр `maximumPoolSize` в HikariCP.",
+        "difficulty": "hard",
+        "category": "reasoning",
+        "source_file": "post-mortem-db-failure.md"
+    },
+    {
+        "id": "q_125",
+        "question": "Почему правило use_backend backend-v1 if { path_beg /api } считается плохой практикой, если есть версия v2?",
+        "expected_answer": "Потому что `path_beg /api` также совпадет с `/api/v2`, перехватывая запросы, предназначенные для второй версии API.",
+        "difficulty": "hard",
+        "category": "reasoning",
+        "source_file": "haproxy-l7-deep-dive.md"
+    },
+    {
+        "id": "q_126",
+        "question": "Какие уровни изоляции транзакций руководство рекомендует использовать 'осознанно'?",
+        "expected_answer": "Рекомендуются `REPEATABLE READ` и `SERIALIZABLE`.",
+        "difficulty": "medium",
+        "category": "reasoning",
+        "source_file": "01-postgresql-deadlock.md"
+    },
+    {
+        "id": "q_127",
+        "question": "Какое ограничение gRPC упоминается в контексте взаимодействия с фронтендом?",
+        "expected_answer": "gRPC нельзя вызвать напрямую из браузера, требуется `gRPC-Web` или прокси.",
+        "difficulty": "medium",
+        "category": "reasoning",
+        "source_file": "adr-009-grpc-standard.md"
+    },
+    {
+        "id": "q_128",
+        "question": "Какое архитектурное изменение предлагается внести для защиты от шторма подключений?",
+        "expected_answer": "Внедрить `PGBouncer` (как sidecar или отдельный deployment).",
+        "difficulty": "medium",
+        "category": "reasoning",
+        "source_file": "post-mortem-db-failure.md"
+    },
+    {
+        "id": "q_129",
+        "question": "Что произойдет с таблицами Stick Tables при перезагрузке HAProxy, если не настроены peers?",
+        "expected_answer": "Все данные (привязки сессий) будут сброшены/потеряны, так как они хранятся в памяти.",
+        "difficulty": "medium",
+        "category": "reasoning",
+        "source_file": "haproxy-l7-deep-dive.md"
+    },
+    {
+        "id": "q_130",
+        "question": "В примере правильного кода (Хорошо), в каком порядке обновляются ID, чтобы избежать дедлока?",
+        "expected_answer": "В порядке возрастания ID: сначала `WHERE id = 1`, затем `WHERE id = 2`.",
+        "difficulty": "simple",
+        "category": "reasoning",
+        "source_file": "01-postgresql-deadlock.md"
+    },
+    {
+        "id": "q_131",
+        "question": "Какая команда kubectl показывает логи ПРЕДЫДУЩЕГО (упавшего) контейнера в поде?",
+        "expected_answer": "kubectl logs <pod-name> -n <namespace> --previous",
+        "difficulty": "simple",
+        "category": "troubleshooting",
+        "source_file": "02-k8s-crashloopbackoff.md"
+    },
+    {
+        "id": "q_132",
+        "question": "Какие значения Exit Code в Kubernetes соответствуют: 1) ошибке приложения, 2) OOMKilled, 3) Segmentation fault?",
+        "expected_answer": "Exit Code 1 = ошибка приложения (неправильная конфигурация, exception). Exit Code 137 = OOMKilled (нехватка памяти, SIGKILL). Exit Code 139 = Segmentation fault (SIGSEGV).",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "02-k8s-crashloopbackoff.md"
+    },
+    {
+        "id": "q_133",
+        "question": "Какой JAVA_OPTS рекомендуется установить для JVM в Kubernetes при Exit Code 137?",
+        "expected_answer": "JAVA_OPTS=\"-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC\"",
+        "difficulty": "hard",
+        "category": "configuration",
+        "source_file": "02-k8s-crashloopbackoff.md"
+    },
+    {
+        "id": "q_134",
+        "question": "Какие параметры livenessProbe в Kubernetes рекомендуются для предотвращения ложных рестартов?",
+        "expected_answer": "initialDelaySeconds: 30 (дать приложению время на старт), periodSeconds: 10 (проверка каждые 10 сек), timeoutSeconds: 5 (таймаут ответа), failureThreshold: 3 (3 неудачи до рестарта).",
+        "difficulty": "hard",
+        "category": "configuration",
+        "source_file": "02-k8s-crashloopbackoff.md"
+    },
+    {
+        "id": "q_135",
+        "question": "Какие значения proxy таймаутов рекомендуется установить в Nginx для медленных backend приложений?",
+        "expected_answer": "proxy_connect_timeout 60s; proxy_send_timeout 60s; proxy_read_timeout 60s; (или до 300s для очень медленных операций)",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "03-nginx-502-bad-gateway.md"
+    },
+    {
+        "id": "q_136",
+        "question": "Какой параметр upstream в Nginx задаёт количество неудачных попыток перед отключением сервера и на какое время?",
+        "expected_answer": "Параметры max_fails=3 fail_timeout=30s — после 3 неудачных попыток сервер будет отключён на 30 секунд.",
+        "difficulty": "medium",
+        "category": "configuration",
+        "source_file": "03-nginx-502-bad-gateway.md"
+    },
+    {
+        "id": "q_137",
+        "question": "Какая директива Nginx позволяет автоматически повторить запрос на другой upstream при ошибках 502/503/504?",
+        "expected_answer": "proxy_next_upstream error timeout http_502 http_503 http_504; с параметром proxy_next_upstream_tries 2;",
+        "difficulty": "hard",
+        "category": "configuration",
+        "source_file": "03-nginx-502-bad-gateway.md"
+    },
+    {
+        "id": "q_138",
+        "question": "Если приложение слушает на 127.0.0.1, а Nginx пытается подключиться по IP 10.x.x.x — какая будет ошибка и как исправить?",
+        "expected_answer": "Ошибка будет 'Connection refused' (111). Исправление: настроить приложение слушать на 0.0.0.0 вместо 127.0.0.1. Например, для Gunicorn: gunicorn -b 0.0.0.0:8080 app:app",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "03-nginx-502-bad-gateway.md"
+    },
+    {
+        "id": "q_139",
+        "question": "Согласно SRE Handbook, какие три обязательных поля должны присутствовать в JSON-логах всех сервисов помимо app_name и env?",
+        "expected_answer": "trace_id, user_id, severity",
+        "difficulty": "medium",
+        "category": "standards",
+        "source_file": "sre-engineering-handbook.md"
+    },
+    {
+        "id": "q_140",
+        "question": "Чем отличаются SLI, SLO и Error Budget согласно SRE Handbook?",
+        "expected_answer": "SLI (Service Level Indicator) — конкретная метрика (например, Latency 95-й перцентиль). SLO (Service Level Objective) — целевое значение SLI (например, <200ms для 99% запросов). Error Budget = 1 - SLO, если бюджет исчерпан — замораживаются все фичи.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "sre-engineering-handbook.md"
+    },
+    {
+        "id": "q_141",
+        "question": "Какой максимальный Response Time для ACK алерта P0 согласно правилам On-Call в SRE Handbook?",
+        "expected_answer": "Не более 15 минут.",
+        "difficulty": "simple",
+        "category": "operations",
+        "source_file": "sre-engineering-handbook.md"
+    },
+    {
+        "id": "q_142",
+        "question": "Какие два паттерна метрик (RED и USE) должны реализовывать все сервисы согласно SRE Handbook?",
+        "expected_answer": "RED Pattern: Rate (запросы/сек), Errors (ошибки/сек), Duration (длительность). USE Pattern: Utilization (загрузка), Saturation (насыщение), Errors (ошибки).",
+        "difficulty": "hard",
+        "category": "monitoring",
+        "source_file": "sre-engineering-handbook.md"
+    },
+    {
+        "id": "q_143",
+        "question": "Какая корневая причина привела к 5-часовому отказу HashiCorp Vault 15 декабря?",
+        "expected_answer": "Корневой сертификат (Root CA) был сгенерирован со сроком действия 730 дней (2 года) и не мониторился. Автоматическое обновление было реализовано только для Intermediate сертификатов, но не для корневого.",
+        "difficulty": "hard",
+        "category": "post-mortem",
+        "source_file": "vault-root-ca-expiration.md"
+    },
+    {
+        "id": "q_144",
+        "question": "Какие команды openssl используются для проверки срока действия сертификата локально и на удалённом сервере Vault?",
+        "expected_answer": "Локально: openssl x509 -in /etc/vault.d/vault.crt -text -noout | grep 'Not After'. Удалённо: echo | openssl s_client -connect vault.internal:8200 2>/dev/null | openssl x509 -noout -dates",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "vault-root-ca-expiration.md"
+    },
+    {
+        "id": "q_145",
+        "question": "Почему при экстренной замене сертификатов нельзя сразу удалять старые CA из Trust Bundles?",
+        "expected_answer": "Потому что клиенты, которые ещё не обновились, получат массовый отказ соединений. Старые CA нужно удалять только после обновления всех клиентов.",
+        "difficulty": "hard",
+        "category": "security",
+        "source_file": "vault-root-ca-expiration.md"
+    },
+    {
+        "id": "q_146",
+        "question": "Какой инструмент рекомендуется в плане DR для загрузки данных Cassandra при изменении топологии кластера?",
+        "expected_answer": "sstableloader — это наиболее надежный способ при изменении топологии. Команда: sstableloader -d <new_node_ip> /path/to/backup/my_keyspace/users/",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "cassandra-dr-runbook.md"
+    },
+    {
+        "id": "q_147",
+        "question": "Какие значения RTO и RPO указаны в плане аварийного восстановления Cassandra?",
+        "expected_answer": "RTO = 4 часа (время до доступности кластера). RPO = 24 часа + время репликации WAL (максимально допустимая потеря данных).",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "cassandra-dr-runbook.md"
+    },
+    {
+        "id": "q_148",
+        "question": "Почему нельзя запускать nodetool repair на всём кластере Cassandra одновременно?",
+        "expected_answer": "Это создаст критическую нагрузку на диск и сеть. Нужно делать repair по очереди для каждой ноды.",
+        "difficulty": "hard",
+        "category": "operations",
+        "source_file": "cassandra-dr-runbook.md"
+    },
+    {
+        "id": "q_149",
+        "question": "В каком файле (dump_postgres_schema_notes) содержится фраза 'Конфиг для проды, не трогать!' и какое предупреждение даётся рядом?",
+        "expected_answer": "Фраза 'Конфиг для проды, не трогать!' повторяется многократно. Рядом указано: 'Просто скопируй это в консоль и нажми энтер' и 'Внимание! Не перезагружать сервер без спроса!'",
+        "difficulty": "simple",
+        "category": "legacy",
+        "source_file": "dump_postgres_schema_notes.md"
+    },
+    {
+        "id": "q_150",
+        "question": "Какое 'временное решение' упоминается в dump_postgres_schema_notes и сколько лет оно уже работает?",
+        "expected_answer": "Упоминается фраза 'Это временное решение (работает уже 3 года)'.",
+        "difficulty": "simple",
+        "category": "legacy",
+        "source_file": "dump_postgres_schema_notes.md"
+    },
+    {
+        "id": "q_151",
+        "question": "Какой алгоритм контроля перегрузки TCP рекомендуется использовать вместо стандартного CUBIC для современных сетей с низкой потерей пакетов?",
+        "expected_answer": "Алгоритм BBR от Google. Включается командами: sysctl -w net.core.default_qdisc=fq и sysctl -w net.ipv4.tcp_congestion_control=bbr",
+        "difficulty": "hard",
+        "category": "tuning",
+        "source_file": "linux-network-performance-tuning.md"
+    },
+    {
+        "id": "q_152",
+        "question": "Какой параметр sysctl определяет размер очереди пакетов, ожидающих обработки ядром Linux, и какое значение рекомендуется для высоконагруженных систем?",
+        "expected_answer": "Параметр net.core.netdev_max_backlog. Рекомендуемое значение: 65536.",
+        "difficulty": "hard",
+        "category": "tuning",
+        "source_file": "linux-network-performance-tuning.md"
+    },
+    {
+        "id": "q_153",
+        "question": "В выводе netstat -s какой счётчик указывает на переполнение очереди accept() и какое действие нужно предпринять?",
+        "expected_answer": "Счётчик TcpExtListenOverflows. Нужно увеличить параметр somaxconn: net.core.somaxconn = 65535",
+        "difficulty": "hard",
+        "category": "troubleshooting",
+        "source_file": "linux-network-performance-tuning.md"
+    },
+    {
+        "id": "q_154",
+        "question": "В файле chat_export_debug какие значения таймаутов (10ms, 500ms, 1s) чаще всего встречаются в сообщениях типа ERROR?",
+        "expected_answer": "В логах ERROR чаще всего встречаются таймауты 500ms и 10ms. Примеры: 'ERROR: Connection timeout in 500ms', 'ERROR: Connection timeout in 10ms'.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "chat_export_debug.md"
+    },
+    {
+        "id": "q_155",
+        "question": "В chat_export_debug кому рекомендуется звонить, если система 'упадет'?",
+        "expected_answer": "Рекомендуется звонить Васе. Фраза: 'Если упадет — звоните Васе, он знает что делать.'",
+        "difficulty": "simple",
+        "category": "legacy",
+        "source_file": "chat_export_debug.md"
+    },
+    {
+        "id": "q_156",
+        "question": "В incident_notes_june какая фраза о 'временном решении' повторяется и сколько лет оно работает?",
+        "expected_answer": "Фраза: 'Это временное решение (работает уже 3 года)'.",
+        "difficulty": "simple",
+        "category": "legacy",
+        "source_file": "incident_notes_june.md"
+    },
+    {
+        "id": "q_157",
+        "question": "Чем отличается настройка репликации PostgreSQL от MySQL в плане идентификации транзакций?",
+        "expected_answer": "PostgreSQL использует позиционирование по WAL-сегментам (wal_keep_segments) и Replication Slots для отслеживания позиции реплики. MySQL использует GTID (Global Transaction ID) — уникальный идентификатор для каждой транзакции. GTID упрощает переключение мастера, а в PostgreSQL нужно отслеживать LSN (Log Sequence Number).",
+        "difficulty": "hard",
+        "category": "cross_document",
+        "source_file": "11-postgresql-replication-guide.md"
+    },
+    {
+        "id": "q_158",
+        "question": "Какие параметры конфигурации обязательны для мастера при настройке GTID репликации MySQL?",
+        "expected_answer": "gtid_mode = ON, enforce_gtid_consistency = ON, log_bin = mysql-bin, binlog_format = ROW, log_slave_updates = ON, server-id = <unique_id>",
+        "difficulty": "hard",
+        "category": "configuration",
+        "source_file": "14-mysql-replication-guide.md"
+    },
+    {
+        "id": "q_159",
+        "question": "В ADR-005 почему для кеширования был выбран Redis, а не Memcached? Назовите три причины.",
+        "expected_answer": "1. Redis поддерживает сложные структуры данных (не только строки как Memcached). 2. Встроенная поддержка Lua-скриптов. 3. Механизм Pub/Sub для инвалидации кеша между экземплярами сервисов.",
+        "difficulty": "hard",
+        "category": "architecture",
+        "source_file": "adr-005-redis-cache.md"
+    },
+    {
+        "id": "q_160",
+        "question": "Какую команду SQL нужно выполнить на мастере PostgreSQL для проверки статуса подключенных реплик?",
+        "expected_answer": "SELECT client_addr, state FROM pg_stat_replication;",
+        "difficulty": "medium",
+        "category": "database",
+        "source_file": "11-postgresql-replication-guide.md"
+    },
+    {
+        "id": "q_161",
+        "question": "Какую команду MySQL нужно выполнить на слейве для проверки статуса репликации и какие поля важны?",
+        "expected_answer": "SHOW SLAVE STATUS\\G. Важные поля: Slave_IO_Running (Yes), Slave_SQL_Running (Yes), Seconds_Behind_Master (должно быть небольшим).",
+        "difficulty": "medium",
+        "category": "database",
+        "source_file": "14-mysql-replication-guide.md"
+    },
+    {
+        "id": "q_162",
+        "question": "Какова ожидаемая задержка (latency) для операции GET 1KB в Redis Single Node по сравнению с Memcached?",
+        "expected_answer": "Redis Single Node: 0.25ms, Memcached: 0.2ms. Разница минимальна.",
+        "difficulty": "medium",
+        "category": "architecture",
+        "source_file": "adr-005-redis-cache.md"
+    },
+    {
+        "id": "q_163",
+        "question": "Какой параметр PostgreSQL включает возможность выполнения запросов на чтение на реплике (Hot Standby)?",
+        "expected_answer": "hot_standby = on",
+        "difficulty": "simple",
+        "category": "configuration",
+        "source_file": "11-postgresql-replication-guide.md"
+    },
+    {
+        "id": "q_164",
+        "question": "Какой параметр MySQL делает слейв доступным только для чтения?",
+        "expected_answer": "read_only = ON",
+        "difficulty": "simple",
+        "category": "configuration",
+        "source_file": "14-mysql-replication-guide.md"
+    },
+    {
+        "id": "q_165",
+        "question": "На сколько процентов ожидается снижение нагрузки на PostgreSQL после внедрения Redis кеша согласно ADR-005?",
+        "expected_answer": "На 40-60%.",
+        "difficulty": "simple",
+        "category": "architecture",
+        "source_file": "adr-005-redis-cache.md"
+    },
+    {
+        "id": "q_166",
+        "question": "Какие параметры ethtool рекомендуется настроить для увеличения размера кольцевых буферов сетевой карты при высокой нагрузке?",
+        "expected_answer": "ethtool -G eth0 rx 4096 tx 4096 — увеличить RX и TX ring buffers до 4096.",
+        "difficulty": "hard",
+        "category": "tuning",
+        "source_file": "linux-network-performance-tuning.md"
+    },
+    {
+        "id": "q_167",
+        "question": "Какой порт используется для мониторинга Kafka Consumer Lag согласно документации?",
+        "expected_answer": "В документации stream-debug.md не указан конкретный порт для мониторинга Consumer Lag. Упоминается JMX и Prometheus, но порт не назван. Для JMX обычно используется 9999 или 9010, для Prometheus — 9308, но это не указано явно.",
+        "difficulty": "hard",
+        "category": "negative",
+        "source_file": "stream-debug.md"
+    },
+    {
+        "id": "q_168",
+        "question": "Какой алгоритм шифрования рекомендуется для бэкапов Cassandra в S3?",
+        "expected_answer": "Документ cassandra-dr-runbook.md указывает, что бэкапы в S3 должны быть зашифрованы ключом KMS, но конкретный алгоритм шифрования (AES-256, etc.) не указан.",
+        "difficulty": "medium",
+        "category": "negative",
+        "source_file": "cassandra-dr-runbook.md"
+    },
+    {
+        "id": "q_169",
+        "question": "Какой максимальный размер heap рекомендуется для Java-приложений в Kubernetes pod с limits.memory = 2Gi?",
+        "expected_answer": "В документе 02-k8s-crashloopbackoff.md приводится пример JAVA_OPTS с -Xmx1536m при limits.memory = 2Gi. Это примерно 75% от лимита памяти, оставляя место для метаспейса и overhead JVM.",
+        "difficulty": "hard",
+        "category": "reasoning",
+        "source_file": "02-k8s-crashloopbackoff.md"
+    },
+    {
+        "id": "q_170",
+        "question": "Почему при инциденте с Vault кластер не мог восстановиться простым обновлением Leader ноды?",
+        "expected_answer": "Потому что Follower ноды не могли войти в кластер из-за несовпадения цепочек доверия (x509: certificate signed by unknown authority). Требовалась холодная перезагрузка всего кластера с обновлённым файлом доверенных сертификатов.",
+        "difficulty": "hard",
+        "category": "reasoning",
+        "source_file": "vault-root-ca-expiration.md"
+    },
+    {
+        "id": "q_171",
+        "question": "Какой Docker-флаг нужен для увеличения лимита памяти контейнера?",
+        "expected_answer": "Флаг --memory (например, --memory=2g). В документе 06-docker-exit-code-137.md говорится об увеличении лимита памяти, но точный синтаксис флага в том файле полностью не расписан.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "06-docker-exit-code-137.md"
+    },
+    {
+        "id": "q_172",
+        "question": "Почему tcp_tw_reuse = 1 важен для балансировщиков с миллионами коротких соединений?",
+        "expected_answer": "Потому что этот параметр позволяет быстро переиспользовать порты в состоянии TIME_WAIT. Без него порты остаются занятыми на 2MSL (обычно 60 сек), что может привести к исчерпанию портов.",
+        "difficulty": "hard",
+        "category": "reasoning",
+        "source_file": "linux-network-performance-tuning.md"
+    },
+    {
+        "id": "q_173",
+        "question": "Что такое Error Budget в терминологии SRE и что происходит при его исчерпании?",
+        "expected_answer": "Error Budget = 1 - SLO. Если бюджет исчерпан, все изменения (feature code) замораживаются, и команда фокусируется только на надежности.",
+        "difficulty": "hard",
+        "category": "reasoning",
+        "source_file": "sre-engineering-handbook.md"
+    },
+    {
+        "id": "q_174",
+        "question": "Какой backoff time используется между рестартами CrashLoopBackOff пода в Kubernetes?",
+        "expected_answer": "Экспоненциальный backoff: 10s, 20s, 40s, 80s... Время между рестартами увеличивается экспоненциально.",
+        "difficulty": "medium",
+        "category": "troubleshooting",
+        "source_file": "02-k8s-crashloopbackoff.md"
+    }
+]
