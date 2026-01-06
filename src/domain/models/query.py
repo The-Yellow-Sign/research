@@ -63,3 +63,36 @@ class DocAnalysis(BaseModel):
         description="Краткое объяснение оценки",
         max_length=500,
     )
+
+
+class RerankerResult(BaseModel):
+    """Результат LLM-реранкинга.
+
+    Используется для мягкого ранжирования документов по шкале 0.0-1.0.
+
+    Атрибуты:
+        relevance_score: Оценка от 0.0 (нерелевантно) до 1.0 (идеально).
+        reasoning: Краткое обоснование оценки.
+
+    """
+
+    relevance_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Оценка релевантности от 0.0 до 1.0",
+    )
+    reasoning: str = Field(
+        ...,
+        description="Краткое обоснование оценки",
+        max_length=300,
+    )
+
+
+class RerankerBatchResult(BaseModel):
+    """Результат batch LLM-реранкинга (для нескольких документов)."""
+
+    block_rankings: list[RerankerResult] = Field(
+        ...,
+        description="Оценки для каждого блока",
+    )

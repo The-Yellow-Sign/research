@@ -19,8 +19,11 @@ class RAGOutput(BaseModel):
     retrieved_contexts: list[RetrievedContext] = Field(
         default_factory=list, description="Найденные документы"
     )
-    latency_sec: float = Field(default=0.0, description="Время генерации")
+    latency_sec: float = Field(default=0.0, description="Общее время pipeline")
     answer_type: str = Field(default="final_answer", description="Тип ответа")
+    timings: dict[str, float] | None = Field(
+        default=None, description="Детальные таймеры по этапам pipeline"
+    )
 
 
 class EvaluationResult(BaseModel):
@@ -35,7 +38,6 @@ class EvaluationResult(BaseModel):
 
     rag_output: RAGOutput | None = Field(default=None, description="Результат RAG")
 
-
     ragas_scores: dict[str, float] | None = Field(default=None, description="Оценки RAGAS")
 
     error: str | None = Field(default=None, description="Ошибка, если была")
@@ -48,13 +50,18 @@ class EvaluationSummary(BaseModel):
     successful: int = Field(default=0)
     failed: int = Field(default=0)
 
-
     avg_context_recall: float = Field(default=0.0)
     avg_context_precision: float = Field(default=0.0)
     avg_faithfulness: float = Field(default=0.0)
     avg_answer_relevancy: float = Field(default=0.0)
 
     avg_rag_latency_sec: float = Field(default=0.0)
+
+    avg_query_expansion_sec: float = Field(default=0.0)
+    avg_retrieve_sec: float = Field(default=0.0)
+    avg_rerank_sec: float = Field(default=0.0)
+    avg_llm_analysis_sec: float = Field(default=0.0)
+    avg_llm_generation_sec: float = Field(default=0.0)
 
 
 class EvaluationReport(BaseModel):

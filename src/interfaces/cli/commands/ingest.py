@@ -58,7 +58,6 @@ def run_ingest(force_reindex: bool = False) -> None:
         delete_by_source_file(os_client, milvus_collection, deleted_paths)
 
     if new_or_modified:
-
         modified_rel_paths = []
         for f in new_or_modified:
             try:

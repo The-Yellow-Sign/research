@@ -3,7 +3,7 @@
 Реализует Parent-Document Retrieval паттерн:
 - Разбиение по markdown-заголовкам (parent = секция)
 - Извлечение блоков кода и таблиц через AST-парсинг (Marko)
-- Создание "умных" children-чанков с обогащённым контекстом для векторного поиска
+- Создание children-чанков с обогащённым контекстом для векторного поиска
 
 Использует доменные сервисы из src.domain.services.chunking.
 """
@@ -38,8 +38,6 @@ HEADERS_TO_SPLIT: list[tuple[str, str]] = [
     ("##", "header_2"),
     ("###", "header_3"),
 ]
-
-
 
 _markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=HEADERS_TO_SPLIT)
 _text_splitter = RecursiveCharacterTextSplitter(
@@ -107,7 +105,6 @@ def _process_single_file(filepath: Path) -> tuple[list[dict[str, Any]], list[dic
     try:
         filename = str(filepath.relative_to(SOURCE_DIR))
     except ValueError:
-
         filename = filepath.name
 
     parents: list[dict[str, Any]] = []

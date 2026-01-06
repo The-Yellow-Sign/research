@@ -7,6 +7,7 @@
 - Cross-Encoder для реранкинга
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -110,7 +111,7 @@ class SearchEngine:
         """Получает parent-документы из OpenSearch DocStore."""
         return self.opensearch.fetch_parents(parent_ids)
 
-    def retrieve_candidates(
+    async def retrieve_candidates(
         self,
         query: str,
         filters: dict[str, Any] | None = None,
@@ -132,15 +133,20 @@ class SearchEngine:
             Словарь {parent_id: CandidateDoc}.
 
         """
-        milvus_hits = self.milvus.search(query, filters)
-        opensearch_hits = self.opensearch.search(query, filters)
+        tasks = [
+            asyncio.to_thread(self.milvus.search, query, filters),
+            asyncio.to_thread(self.opensearch.search, query, filters),
+        ]
+
+        results = await asyncio.gather(*tasks)
+        milvus_hits, opensearch_hits = results[0], results[1]
 
         fused_scores, best_chunk_content = self._rrf_fusion(milvus_hits, opensearch_hits)
 
         sorted_pids = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
         top_pids = [pid for pid, _ in sorted_pids[:top_k]]
 
-        parents = self.opensearch.fetch_parents(top_pids)
+        parents = await asyncio.to_thread(self.opensearch.fetch_parents, top_pids)
 
         candidates = {}
         for pid in top_pids:
@@ -164,16 +170,18 @@ class SearchEngine:
         query: str,
         candidates: dict[str, dict[str, Any]],
         top_k: int = FINAL_TOP_K,
+        dedupe_sources: bool = False,
     ) -> list[dict[str, Any]]:
         """Реранкает кандидатов с помощью Cross-Encoder.
 
         Применяет RERANK_MAX_CHARS для ограничения длины chunk.
-        Логирует распределение scores для мониторинга.
+        При dedupe_sources=True оставляет только лучший чанк с каждого source.
 
         Args:
             query: Запрос для реранкинга.
             candidates: Словарь кандидатов от retrieve_candidates.
             top_k: Количество лучших результатов.
+            dedupe_sources: Дедупликация по source (один файл = один результат).
 
         Returns:
             Отсортированный список документов с reranker_score.
@@ -192,21 +200,35 @@ class SearchEngine:
 
         rerank_scores = self.reranker.predict(rerank_inputs, batch_size=32, show_progress_bar=False)
 
-
-
         results = []
         for pid, score in zip(pids, rerank_scores, strict=True):
             doc = candidates[pid]
-            results.append({
-                **doc,
-                "score": float(score),
-                "reranker_score": float(score),
-            })
+            results.append(
+                {
+                    **doc,
+                    "score": float(score),
+                    "reranker_score": float(score),
+                }
+            )
 
         results.sort(key=lambda x: x["score"], reverse=True)
+
+        if dedupe_sources:
+            seen_sources: set[str] = set()
+            deduped: list[dict[str, Any]] = []
+            for doc in results:
+                source = doc.get("metadata", {}).get("source") or doc.get("source", "")
+                if source and source not in seen_sources:
+                    seen_sources.add(source)
+                    deduped.append(doc)
+                elif not source:
+                    deduped.append(doc)
+            results = deduped
+            logger.debug("Deduped sources: %d unique from %d total", len(results), len(pids))
+
         return results[:top_k]
 
-    def hybrid_search(
+    async def hybrid_search(
         self,
         query: str,
         filters: dict[str, Any] | None = None,
@@ -223,7 +245,7 @@ class SearchEngine:
             Отранжированный список parent-документов.
 
         """
-        candidates = self.retrieve_candidates(query, filters)
+        candidates = await self.retrieve_candidates(query, filters)
         return self.rerank_candidates(query, candidates)
 
     def _rrf_fusion(

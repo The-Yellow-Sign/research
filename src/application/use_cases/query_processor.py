@@ -14,16 +14,19 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from src.application.dto.requests import ChatRequest
 from src.application.dto.responses import ChatResponse
 from src.application.use_cases.document_analyzer import DocumentAnalyzer
 from src.application.use_cases.query_expander import QueryExpander
-from src.config import FINAL_TOP_K
+from src.config import FINAL_TOP_K, RAG_MODE
 from src.config.metrics import get_metrics_collector
 from src.domain.models.response import SourceDoc
 from src.domain.ports.llm import LLMPort
+
+if TYPE_CHECKING:
+    from src.infrastructure.search.engine import SearchEngine
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +45,7 @@ class QueryProcessor:
     def __init__(
         self,
         llm: LLMPort,
-        search_engine: Any,
+        search_engine: "SearchEngine",
     ) -> None:
         """Инициализация процессора запросов.
 
@@ -76,21 +79,17 @@ class QueryProcessor:
         """
         timings: dict[str, float] = {}
 
-
         t0 = time.perf_counter()
         expansion = await self.query_expander.expand(request.query, request.history)
         queries = self.query_expander.get_all_queries(expansion)
         timings["query_expansion"] = time.perf_counter() - t0
 
-
         t0 = time.perf_counter()
         retrieve_tasks = [
-            asyncio.to_thread(self.search_engine.retrieve_candidates, q, request.filters)
-            for q in queries
+            self.search_engine.retrieve_candidates(q, request.filters) for q in queries
         ]
         candidates_list = await asyncio.gather(*retrieve_tasks)
         timings["retrieve"] = time.perf_counter() - t0
-
 
         merged_candidates = self._merge_candidates(candidates_list)
         total_candidates = sum(len(c) for c in candidates_list)
@@ -102,12 +101,10 @@ class QueryProcessor:
             total_candidates,
         )
 
-
         if not merged_candidates and request.filters:
             logger.info("Нет результатов с фильтром, ищем без фильтра")
             retrieve_tasks = [
-                asyncio.to_thread(self.search_engine.retrieve_candidates, q, None)
-                for q in queries
+                asyncio.to_thread(self.search_engine.retrieve_candidates, q, None) for q in queries
             ]
             candidates_list = await asyncio.gather(*retrieve_tasks)
             merged_candidates = self._merge_candidates(candidates_list)
@@ -116,7 +113,6 @@ class QueryProcessor:
             return await self._generate_clarifying_response(
                 request.query, expansion.rewritten_query
             )
-
 
         t0 = time.perf_counter()
         docs = await asyncio.to_thread(
@@ -139,7 +135,6 @@ class QueryProcessor:
                 request.query, expansion.rewritten_query
             )
 
-
         t0 = time.perf_counter()
         analyzed_docs = await self.document_analyzer.analyze_batch(docs, expansion.rewritten_query)
         timings["llm_analysis"] = time.perf_counter() - t0
@@ -156,15 +151,26 @@ class QueryProcessor:
                 request.query, expansion.rewritten_query
             )
 
-        context_xml = self._build_context_xml(analyzed_docs)
+        if RAG_MODE == "full":
+            await self._summarize_docs(analyzed_docs)
 
+        if analyzed_docs and analyzed_docs[0].get("low_confidence"):
+            logger.warning("Все документы ниже порога релевантности, возвращаем отказ")
+            return ChatResponse(
+                answer_type="no_relevant_docs",
+                answer="В базе знаний отсутствует информация по данному запросу.",
+                sources=[],
+                rewritten_query=expansion.rewritten_query,
+                timings=timings,
+            )
+
+        context_xml = self._build_context_xml(analyzed_docs)
 
         t0 = time.perf_counter()
         answer = await self.llm.generate_answer(context_xml, expansion.rewritten_query)
         timings["llm_generation"] = time.perf_counter() - t0
 
         logger.info("LLM Generation (%.2fs)", timings["llm_generation"])
-
 
         self._record_metrics(timings, request, docs, analyzed_docs, merged_candidates)
 
@@ -175,6 +181,7 @@ class QueryProcessor:
             answer=answer,
             sources=sources,
             rewritten_query=expansion.rewritten_query,
+            timings=timings,
         )
 
     async def process_stream(self, request: ChatRequest) -> AsyncIterator[str]:
@@ -187,10 +194,8 @@ class QueryProcessor:
         expansion = await self.query_expander.expand(request.query, request.history)
         queries = self.query_expander.get_all_queries(expansion)
 
-
         retrieve_tasks = [
-            asyncio.to_thread(self.search_engine.retrieve_candidates, q, request.filters)
-            for q in queries
+            self.search_engine.retrieve_candidates(q, request.filters) for q in queries
         ]
         candidates_list = await asyncio.gather(*retrieve_tasks)
         merged_candidates = self._merge_candidates(candidates_list)
@@ -198,7 +203,6 @@ class QueryProcessor:
         if not merged_candidates:
             yield "[NO_RESULTS]"
             return
-
 
         docs = await asyncio.to_thread(
             self.search_engine.rerank_candidates,
@@ -211,19 +215,23 @@ class QueryProcessor:
             yield "[NO_RESULTS]"
             return
 
-
         analyzed_docs = await self.document_analyzer.analyze_batch(docs, expansion.rewritten_query)
 
         if not analyzed_docs:
             yield "[NO_RELEVANT_DOCS]"
             return
 
-        context_xml = self._build_context_xml(analyzed_docs)
+        if RAG_MODE == "full":
+            await self._summarize_docs(analyzed_docs)
 
+        if analyzed_docs and analyzed_docs[0].get("low_confidence"):
+            yield "[NO_RELEVANT_DOCS]"
+            return
+
+        context_xml = self._build_context_xml(analyzed_docs)
 
         async for token in self.llm.generate_answer_stream(context_xml, expansion.rewritten_query):
             yield token
-
 
         sources = self._build_sources(analyzed_docs)
         yield f"\n[SOURCES]{json.dumps([s.model_dump() for s in sources], ensure_ascii=False)}"
@@ -233,7 +241,16 @@ class QueryProcessor:
         original_query: str,
         rewritten_query: str,
     ) -> ChatResponse:
-        """Генерирует уточняющий вопрос при отсутствии релевантных документов."""
+        """Генерирует уточняющий вопрос при отсутствии релевантных документов.
+
+        Args:
+            original_query: Исходный запрос пользователя.
+            rewritten_query: Переписанный запрос, использованный для поиска.
+
+        Returns:
+            ChatResponse с уточняющим вопросом.
+
+        """
         clarifying_question = await self.llm.generate_clarifying_question(original_query)
         return ChatResponse(
             answer_type="clarifying_question",
@@ -246,7 +263,17 @@ class QueryProcessor:
         self,
         candidates_list: list[dict[str, dict[str, Any]]],
     ) -> dict[str, dict[str, Any]]:
-        """Объединяет кандидатов с суммированием RRF-скоров."""
+        """Объединяет кандидатов с суммированием RRF-скоров.
+
+        Args:
+            candidates_list: Список словарей кандидатов, где каждый словарь представляет
+                             результаты одного поискового запроса.
+
+        Returns:
+            Словарь объединенных кандидатов, где ключом является ID документа,
+            а значения содержат информацию о документе и суммарный RRF-скор.
+
+        """
         merged: dict[str, dict[str, Any]] = {}
 
         for candidates in candidates_list:
@@ -259,11 +286,21 @@ class QueryProcessor:
         return merged
 
     def _build_context_xml(self, search_results: list[dict[str, Any]]) -> str:
-        """Формирует XML-контекст для LLM."""
+        """Формирует XML-контекст для LLM.
+
+        Args:
+            search_results: Список словарей с результатами поиска,
+                            каждый из которых представляет документ.
+
+        Returns:
+            Строка в формате XML, содержащая информацию о документах для LLM.
+
+        """
         context_parts = ["<documents>"]
         for idx, result in enumerate(search_results, 1):
             relevance = result.get("relevance_score", "N/A")
-            safe_content = html.escape(result.get("raw_content", ""))
+            content = result.get("summary_content") or result.get("raw_content", "")
+            safe_content = html.escape(content)
             safe_service = html.escape(result.get("service", ""))
             safe_source = html.escape(result.get("source", ""))
 
@@ -276,8 +313,37 @@ class QueryProcessor:
         context_parts.append("</documents>")
         return "\n".join(context_parts)
 
+    async def _summarize_docs(self, docs: list[dict[str, Any]]) -> None:
+        """Сжимает документы одним LLM вызовом (in-place update).
+
+        Args:
+            docs: Список словарей, представляющих документы.
+                  Поле 'summary_content' будет обновлено сжатым содержимым.
+
+        Returns:
+            None. Обновление происходит in-place.
+
+        """
+        if not docs:
+            return
+
+        contents = [doc.get("raw_content", "") for doc in docs]
+
+        summaries = await self.llm.summarize_batch(contents)
+
+        for doc, summary in zip(docs, summaries, strict=False):
+            doc["summary_content"] = summary
+
     def _build_sources(self, search_results: list[dict[str, Any]]) -> list[SourceDoc]:
-        """Конвертирует результаты поиска в DTO источников."""
+        """Конвертирует результаты поиска в DTO источников.
+
+        Args:
+            search_results: Список словарей с результатами поиска.
+
+        Returns:
+            Список объектов SourceDoc, представляющих источники.
+
+        """
         sources = []
         for idx, result in enumerate(search_results, 1):
             content = result.get("original_content", result.get("raw_content", ""))
@@ -319,12 +385,12 @@ class QueryProcessor:
         metrics.record_pipeline_stage(
             "retrieve", timings.get("retrieve", 0), hits_count=len(merged_candidates)
         )
+        metrics.record_pipeline_stage("rerank", timings.get("rerank", 0), hits_count=len(docs))
         metrics.record_pipeline_stage(
-            "rerank", timings.get("rerank", 0), hits_count=len(docs)
-        )
-        metrics.record_pipeline_stage(
-            "llm_analysis", timings.get("llm_analysis", 0),
-            docs_in=len(docs), docs_out=len(analyzed_docs)
+            "llm_analysis",
+            timings.get("llm_analysis", 0),
+            docs_in=len(docs),
+            docs_out=len(analyzed_docs),
         )
         metrics.record_pipeline_stage("llm_generation", timings.get("llm_generation", 0))
         metrics.record_request(

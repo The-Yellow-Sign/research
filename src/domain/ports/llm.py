@@ -108,3 +108,33 @@ class LLMPort(Protocol):
 
         """
         ...
+
+    async def summarize_document(
+        self,
+        content: str,
+    ) -> str:
+        """Сжимает документ, сохраняя ключевую информацию.
+
+        Args:
+            content: Текст документа.
+
+        Returns:
+            Сжатый текст.
+
+        """
+        ...
+
+    async def summarize_batch(
+        self,
+        contents: list[str],
+    ) -> list[str]:
+        """Batch summarization — сжимает несколько документов за один вызов.
+
+        Args:
+            contents: Список текстов документов.
+
+        Returns:
+            Список сжатых текстов в том же порядке.
+
+        """
+        ...

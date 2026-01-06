@@ -9,6 +9,7 @@ import argparse
 import asyncio
 import json
 import logging
+import math
 import os
 import sys
 
@@ -23,8 +24,11 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 from rich.table import Table
 
 from src.application import RAGService
+from src.evaluation.eval_llm_client import EvalLLMClient
 from src.evaluation.evaluator import RAGEvaluator
-from src.evaluation.schemas import EvaluationReport
+from src.evaluation.schemas import (
+    EvaluationReport,
+)
 from src.infrastructure.search import SearchEngine
 
 console = Console()
@@ -58,7 +62,6 @@ def display_summary(report: EvaluationReport) -> None:
 
     def fmt_pct(val: float) -> str:
         """Форматирует проценты, обрабатывая NaN."""
-        import math
         if math.isnan(val):
             return "N/A"
         return f"{val * 100:.1f}%"
@@ -195,7 +198,8 @@ def _init_rag_service(args) -> "RAGService | None":
         console.print("Загрузка SearchEngine...")
         search_engine = SearchEngine()
         console.print("Инициализация OpenRouter LLM для RAG...")
-        from src.evaluation.eval_llm_client import EvalLLMClient
+        console.print("Инициализация OpenRouter LLM для RAG...")
+
         eval_llm_client = EvalLLMClient()
         rag_service = RAGService(search_engine=search_engine, llm_client=eval_llm_client)
         console.print(f"  [green]RAG Service готов (model: {eval_llm_client.model})[/green]")

@@ -25,7 +25,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-
     @computed_field
     @property
     def project_root(self) -> Path:
@@ -38,18 +37,15 @@ class Settings(BaseSettings):
         """Директория с исходными документами."""
         return self.project_root / "devops-playbooks"
 
-
     milvus_host: str = Field(default="localhost", description="Хост Milvus")
     milvus_port: str = Field(default="19530", description="Порт Milvus")
     milvus_collection: str = Field(default="devops_docs_v3", description="Название коллекции")
     milvus_batch_size: int = Field(default=128, description="Размер батча для индексации")
 
-
     opensearch_host: str = Field(default="localhost", description="Хост OpenSearch")
     opensearch_port: int = Field(default=9200, description="Порт OpenSearch")
     opensearch_index: str = Field(default="devops_codes_v3", description="Индекс children")
     opensearch_parent_index: str = Field(default="devops_parents_v1", description="Индекс parents")
-
 
     embedding_model_name: str = Field(
         default="ai-forever/FRIDA",
@@ -64,7 +60,6 @@ class Settings(BaseSettings):
     )
     rerank_max_chars: int = Field(default=1500, description="Максимум символов для реранкинга")
 
-
     llm_base_url: str = Field(
         default="http://localhost:1234/v1",
         description="URL OpenAI-совместимого API",
@@ -74,7 +69,6 @@ class Settings(BaseSettings):
         default="dummy-local-key",
         description="API ключ LLM (для локальных моделей может быть любым)",
     )
-
 
     chunk_size: int = Field(default=700, description="Размер чанка")
     min_chunk_chars: int = Field(default=50, description="Минимум символов в чанке")
@@ -89,23 +83,28 @@ class Settings(BaseSettings):
         """Перекрытие чанков (25% от размера)."""
         return int(self.chunk_size * 0.25)
 
-
     top_k_milvus: int = Field(default=15, description="Top-K для Milvus")
     top_k_opensearch: int = Field(default=15, description="Top-K для OpenSearch")
-    final_top_k: int = Field(default=5, description="Финальный Top-K после реранкинга")
+    final_top_k: int = Field(
+        default=10,
+        description="Финальный Top-K после BGE реранкинга (LLM отберёт из них топ-5)",
+    )
     rrf_k: int = Field(default=60, description="Константа RRF для слияния результатов поиска")
-
 
     min_relevance_score: int = Field(default=3, description="Минимальный score LLM-фильтра (0-5)")
     llm_concurrency_limit: int = Field(default=3, description="Лимит параллельных LLM вызовов")
 
+    rag_mode: Literal["basic", "llm_rerank", "full"] = Field(
+        default="llm_rerank",
+        description=(
+            "Режим работы RAG: basic (только BGE), llm_rerank (BGE+LLM), full (BGE+LLM+Summary)"
+        ),
+    )
 
     llm_timeout: float = Field(default=60.0, description="Таймаут LLM запросов (секунды)")
     max_context_chars: int = Field(default=16000, description="Макс. длина контекста (символы)")
 
-
     metrics_buffer_size: int = Field(default=10000, description="Макс. записей в буфере метрик")
-
 
     otlp_endpoint: str | None = Field(
         default=None,
@@ -120,7 +119,6 @@ class Settings(BaseSettings):
         description="Окружение",
     )
 
-
     openrouter_api_key: str = Field(
         default="",
         description="API ключ OpenRouter",
@@ -134,10 +132,18 @@ class Settings(BaseSettings):
         description="Модель для RAG в evaluation",
     )
     eval_judge_model: str = Field(
-        default="qwen/qwen3-235b-a22b-thinking-2507",
+        default="openai/gpt-4o-mini",
         description="Модель-судья для evaluation",
     )
 
+    ragas_timeout: int = Field(default=600, description="Таймаут RAGAS evaluation (секунды)")
+    ragas_max_retries: int = Field(default=15, description="Максимум повторов для RAGAS")
+    ragas_max_workers: int = Field(default=2, description="Параллельные workers RAGAS")
+
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:8080"],
+        description="Разрешённые CORS origins",
+    )
 
 
 settings = Settings()

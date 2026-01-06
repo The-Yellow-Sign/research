@@ -135,7 +135,6 @@ class TerminalUI:
 
         while True:
             try:
-
                 user_input = await self.session.prompt_async("\n👤 Вы: ")
 
                 if not user_input.strip():
@@ -150,13 +149,10 @@ class TerminalUI:
                 request = ChatRequest(query=user_input, history=self.history)
                 self.console.print("[grey50]🔄 Обработка запроса...[/grey50]")
 
-
                 response = await self.service.process_query(request)
 
                 if response.rewritten_query != user_input:
-                    self.console.print(
-                        f"[grey50]🔄 Rewriter: {response.rewritten_query}[/grey50]"
-                    )
+                    self.console.print(f"[grey50]🔄 Rewriter: {response.rewritten_query}[/grey50]")
 
                 self._render_response(response)
 

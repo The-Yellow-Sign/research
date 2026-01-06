@@ -27,7 +27,6 @@ def display_summary(summary: dict) -> None:
     console.print()
     console.print(Panel.fit("[bold cyan]📊 Сводка метрик RAG-пайплайна[/bold cyan]"))
 
-
     llm = summary.get("llm", {})
     llm_table = Table(title="🤖 LLM-вызовы", show_header=True, header_style="bold magenta")
     llm_table.add_column("Метрика", style="cyan")
@@ -41,7 +40,6 @@ def display_summary(summary: dict) -> None:
 
     console.print(llm_table)
 
-
     search = summary.get("search", {})
     search_table = Table(title="🔍 Поисковые операции", show_header=True, header_style="bold blue")
     search_table.add_column("Метрика", style="cyan")
@@ -52,7 +50,6 @@ def display_summary(summary: dict) -> None:
     search_table.add_row("Avg hits", f"{search.get('avg_hits', 0):.1f}")
 
     console.print(search_table)
-
 
     requests = summary.get("requests", {})
     req_table = Table(title="📨 Обработанные запросы", show_header=True, header_style="bold yellow")
@@ -137,7 +134,6 @@ def main() -> None:
         if not args.summary:
             display_records(records, args.last)
     else:
-
         collector = get_metrics_collector()
         summary = collector.get_summary(args.last)
         display_summary(summary)
@@ -145,7 +141,6 @@ def main() -> None:
         if not args.summary:
             console.print(f"\n[dim]Размер буфера: {collector.get_buffer_size()}[/dim]")
             console.print(f"[dim]Директория метрик: {METRICS_DIR}[/dim]")
-
 
             if METRICS_DIR.exists():
                 files = sorted(METRICS_DIR.glob("metrics_*.jsonl"))

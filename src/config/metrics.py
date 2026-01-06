@@ -16,8 +16,6 @@ from typing import Any
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
-
-
 METRICS_DIR = Path(__file__).parent.parent.parent.parent / "volumes" / "metrics"
 
 
@@ -55,9 +53,7 @@ class MetricsCollector:
         self._buffer_lock = threading.Lock()
         self._initialized = True
 
-
         METRICS_DIR.mkdir(parents=True, exist_ok=True)
-
 
         atexit.register(self.flush_to_disk)
 
@@ -72,7 +68,6 @@ class MetricsCollector:
         }
         with self._buffer_lock:
             self._buffer.append(record)
-
 
         if len(self._buffer) % 100 == 0:
             self._async_flush()
@@ -209,7 +204,6 @@ class MetricsCollector:
         if not records:
             return
 
-
         today = datetime.now().strftime("%Y-%m-%d")
         filepath = METRICS_DIR / f"metrics_{today}.jsonl"
 
@@ -254,7 +248,8 @@ class MetricsCollector:
                 "total_tokens_out": sum(r.get("tokens_out", 0) for r in llm_calls),
                 "error_rate": (
                     sum(1 for r in llm_calls if not r.get("success", True)) / len(llm_calls)
-                    if llm_calls else 0
+                    if llm_calls
+                    else 0
                 ),
             },
             "search": {

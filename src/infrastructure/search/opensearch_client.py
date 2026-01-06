@@ -51,10 +51,7 @@ class OpenSearchClient:
         self.client = OpenSearch(
             hosts=[{"host": host, "port": port}],
             use_ssl=False,
-            connection_pool_kwargs={
-                "maxsize": 50,
-                "timeout": 30
-            },
+            pool_maxsize=50,
         )
         self.children_index = children_index
         self.parent_index = parent_index
@@ -127,9 +124,7 @@ class OpenSearchClient:
             )
 
         duration = time.perf_counter() - t0
-        get_metrics_collector().record_search(
-            "opensearch", duration, len(hits), query, filters
-        )
+        get_metrics_collector().record_search("opensearch", duration, len(hits), query, filters)
         return hits
 
     def fetch_parents(self, parent_ids: list[str]) -> dict[str, dict[str, Any]]:

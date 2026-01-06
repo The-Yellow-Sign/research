@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from typing import Any, Generator
 
 from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
@@ -39,10 +41,7 @@ def setup_telemetry() -> None:
     provider = TracerProvider(resource=resource)
 
     if settings.otlp_endpoint:
-
         try:
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
             exporter = OTLPSpanExporter(endpoint=settings.otlp_endpoint, insecure=True)
             provider.add_span_processor(BatchSpanProcessor(exporter))
             logger.info("OTLP трейсинг включён: %s", settings.otlp_endpoint)
@@ -50,9 +49,6 @@ def setup_telemetry() -> None:
             logger.warning("Не удалось настроить OTLP: %s. Используем console exporter.", e)
             provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
     elif settings.environment == "development":
-
-
-
         logger.debug("Трейсинг в режиме development (без экспорта)")
     else:
         logger.info("Трейсинг отключён (OTLP_ENDPOINT не задан)")
@@ -110,8 +106,6 @@ def instrument_fastapi(app: Any) -> None:
 
     """
     try:
-        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
         FastAPIInstrumentor.instrument_app(app)
         logger.info("FastAPI инструментирован для трейсинга")
     except Exception as e:

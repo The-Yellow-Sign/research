@@ -56,10 +56,10 @@ LLM_CONCURRENCY_LIMIT = settings.llm_concurrency_limit
 
 LLM_TIMEOUT = settings.llm_timeout
 MAX_CONTEXT_CHARS = settings.max_context_chars
+RAG_MODE = settings.rag_mode
 
 __all__ = [
     "settings",
-
     "PROJECT_ROOT",
     "SOURCE_DIR",
     "MILVUS_HOST",
@@ -87,4 +87,5 @@ __all__ = [
     "FINAL_TOP_K",
     "MIN_RELEVANCE_SCORE",
     "LLM_CONCURRENCY_LIMIT",
+    "RAG_MODE",
 ]

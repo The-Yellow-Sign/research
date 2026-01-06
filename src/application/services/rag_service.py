@@ -31,7 +31,6 @@ class RAGService:
         llm_client: Клиент для работы с LLM.
         search_engine: Экземпляр SearchEngine для гибридного поиска.
         query_processor: Оркестратор RAG-пайплайна.
-
     """
 
     def __init__(
@@ -62,7 +61,6 @@ class RAGService:
             self.llm_client = LLMClient()
             logger.info("Создан новый LLM-клиент")
 
-
         self.query_processor = QueryProcessor(
             llm=self.llm_client,
             search_engine=self.search_engine,
@@ -73,7 +71,7 @@ class RAGService:
     async def process_query(self, request: ChatRequest) -> ChatResponse:
         """Обрабатывает запрос через полный RAG-пайплайн.
 
-        Делегирует QueryProcessor.
+        Делегирует выполнение QueryProcessor.
 
         Args:
             request: ChatRequest с запросом, историей и фильтрами.
@@ -90,7 +88,7 @@ class RAGService:
     ) -> AsyncIterator[str]:
         """Streaming-версия process_query.
 
-        Делегирует QueryProcessor.
+        Делегирует выполнение QueryProcessor.
 
         Args:
             request: ChatRequest с запросом.
@@ -102,12 +100,10 @@ class RAGService:
         async for token in self.query_processor.process_stream(request):
             yield token
 
-
-
     def _build_context_xml(self, search_results: list[dict[str, Any]]) -> str:
-        """Формирует XML-контекст (legacy, делегирует QueryProcessor)."""
+        """Формирует XML-контекст (делегирует QueryProcessor)."""
         return self.query_processor._build_context_xml(search_results)
 
     def _build_sources(self, search_results: list[dict[str, Any]]) -> list[SourceDoc]:
-        """Конвертирует результаты в DTO (legacy, делегирует QueryProcessor)."""
+        """Конвертирует результаты в DTO (делегирует QueryProcessor)."""
         return self.query_processor._build_sources(search_results)

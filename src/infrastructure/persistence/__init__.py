@@ -25,14 +25,12 @@ from src.infrastructure.persistence.splitter import (
 )
 
 __all__ = [
-
     "OPENSEARCH_FILES_INDEX",
     "calculate_file_hash",
     "detect_file_changes",
     "ensure_opensearch_files_index",
     "load_file_hashes",
     "update_file_hashes",
-
     "delete_by_source_file",
     "ensure_milvus_collection",
     "ensure_opensearch_children_index",
@@ -42,7 +40,6 @@ __all__ = [
     "index_data",
     "index_parents_to_opensearch",
     "init_opensearch",
-
     "process_files",
     "process_specific_files",
 ]

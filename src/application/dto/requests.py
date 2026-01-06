@@ -6,7 +6,7 @@
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChatRequest(BaseModel):
@@ -18,6 +18,8 @@ class ChatRequest(BaseModel):
         filters: Опциональные фильтры поиска (например, {"service": "postgres"}).
 
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     query: str
     history: list[dict[str, str]] = Field(default_factory=list)

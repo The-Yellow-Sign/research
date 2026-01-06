@@ -1,0 +1,250 @@
+[
+  {
+    "id": "q_019",
+    "question": "Какую технологию использует микросервис уведомлений для управления очередью задач отправки сообщений?",
+    "expected_answer": "Используется Redis в качестве брокера для очереди задач (RQ - Redis Queue). Задачи (email, sms, push) помещаются в очередь 'notifications'.",
+    "difficulty": "simple",
+    "category": "architecture",
+    "source_file": "19-microservice-notifications.md"
+  },
+  {
+    "id": "q_041",
+    "question": "В инциденте с Azure Database for MySQL, какая мера была принята на уровне приложения для mitigating проблемы Connection reset?",
+    "expected_answer": "Были приняты следующие меры: 1. Внедрен экспоненциальный откат (exponential backoff) для Retry Logic (логики повторных попыток). 2. Уменьшен таймаут подключения (connectTimeout) до 5 секунд для быстрого обнаружения сбоев.",
+    "difficulty": "hard",
+    "category": "troubleshooting",
+    "source_file": "azure-db-incident.md"
+  },
+  {
+    "id": "q_045",
+    "question": "В плане аварийного восстановления Cassandra, какой инструмент рекомендуется использовать для восстановления данных в новом регионе при изменении топологии кластера?",
+    "expected_answer": "Рекомендуется использовать sstableloader. Это наиболее надежный способ загрузки данных (токены распределяются корректно) при изменении количества нод или топологии кластера.",
+    "difficulty": "medium",
+    "category": "troubleshooting",
+    "source_file": "cassandra-dr-runbook.md"
+  },
+  {
+    "id": "q_046",
+    "question": "В файле с дебаг-логами чата (chat_export_debug), какое сообщение об ошибке таймаута встречается чаще всего?",
+    "expected_answer": "Чаще всего встречаются сообщения \"Connection timeout\" с значениями 10ms, 500ms и 1s. Логи содержат уровни WARN, ERROR и INFO для этих событий.",
+    "difficulty": "hard",
+    "category": "troubleshooting",
+    "source_file": "chat_export_debug.md"
+  },
+  {
+    "id": "q_049",
+    "question": "В логах отладки Kafka (debug_logs_kafka) с каким интервалом или значением чаще всего выпадает Connection timeout в WARN/ERROR сообщениях?",
+    "expected_answer": "В логах часто фигурируют значения таймаута 10ms и 500ms. Ошибки (ERROR) и предупреждения (WARN) с этими значениями повторяются многократно.",
+    "difficulty": "hard",
+    "category": "troubleshooting",
+    "source_file": "debug_logs_kafka.md"
+  },
+  {
+    "id": "q_050",
+    "question": "При миграции с Apache на Nginx, как изменяется правило Rewrite? (Приведите пример концептуального отличия в синтаксисе).",
+    "expected_answer": "В Apache правила RewriteRule находятся в файлах .htaccess (или httpd.conf). В Nginx .htaccess не поддерживается, и правила переписываются с использованием директивы rewrite (или return) внутри блоков location в nginx.conf.",
+    "difficulty": "medium",
+    "category": "configuration",
+    "source_file": "deprecated-apache.md"
+  },
+  {
+    "id": "q_052",
+    "question": "Какую команду kubectl нужно выполнить перед drain, чтобы запретить планирование новых подов на узел?",
+    "expected_answer": "Нужно выполнить команду 'kubectl cordon <node-name>'. Это помечает узел как SchedulingDisabled.",
+    "difficulty": "simple",
+    "category": "operations",
+    "source_file": "eks-node-draining.md"
+  },
+  {
+    "id": "q_065",
+    "question": "Какая фраза о надежности \"временного решения\" повторяется в заметках incident_notes_june.md?",
+    "expected_answer": "Фраза: \"Это временное решение (работает уже 3 года)\".",
+    "difficulty": "medium",
+    "category": "general",
+    "source_file": "incident_notes_june.md"
+  },
+  {
+    "id": "q_066",
+    "question": "В обновлении инфраструктуры v5.0.0, какое решение Service Mesh было выбрано для замены кастомных решений?",
+    "expected_answer": "Было выбрано решение Istio версии 1.20.",
+    "difficulty": "medium",
+    "category": "architecture",
+    "source_file": "infra-v5-release-notes.md"
+  },
+  {
+    "id": "q_081",
+    "question": "В файле migration_todo_list многократно встречаются логи тайм-аута. Какое сообщение об ошибке (ERROR/WARN) там доминирует?",
+    "expected_answer": "Доминирует сообщение \"Connection timeout\" с различными интервалами (10ms, 500ms, 1s).",
+    "difficulty": "simple",
+    "category": "troubleshooting",
+    "source_file": "migration_todo_list.md"
+  },
+  {
+    "id": "q_083",
+    "question": "При миграции MongoDB в Kubernetes с использованием StatefulSet, какая утилита используется для создания дампа данных на старом сервере?",
+    "expected_answer": "Используется утилита `mongodump`.",
+    "difficulty": "simple",
+    "category": "migration",
+    "source_file": "mongodb-to-k8s-migration.md"
+  },
+  {
+    "id": "q_087",
+    "question": "Какая уязвимость в базовом образе node:18-alpine потребовала обновления до версии node:18.19.0-alpine3.18?",
+    "expected_answer": "Критическая уязвимость в библиотеке `zlib`, позволяющая выполнить DoS-атаку.",
+    "difficulty": "medium",
+    "category": "security",
+    "source_file": "node-security-vulnerability-patched.md"
+  },
+  {
+    "id": "q_091",
+    "question": "Какой HTTP-заголовок обязателен для всех запросов к Payment Service API (v2)?",
+    "expected_answer": "Обязателен заголовок `X-API-Key`.",
+    "difficulty": "simple",
+    "category": "api",
+    "source_file": "payment-api-docs.md"
+  },
+  {
+    "id": "q_100",
+    "question": "В релизе CI/CD Pipeline v3.2.0, какая опция GitLab CI была добавлена для экономии ресурсов раннеров при частых пушах?",
+    "expected_answer": "Опция `interruptible: true`.",
+    "difficulty": "medium",
+    "category": "ci/cd",
+    "source_file": "release-v3.2.0.md"
+  },
+  {
+    "id": "q_107",
+    "question": "В файле temp_auth_fix.md (Messy), какая фраза используется как оправдание для использования временного решения, которое работает уже 3 года?",
+    "expected_answer": "Используется фраза \"(работает уже 3 года)\".",
+    "difficulty": "simple",
+    "category": "general",
+    "source_file": "temp_auth_fix.md"
+  },
+  {
+    "id": "q_109",
+    "question": "Какая корневая причина привела к глобальному отказу HashiCorp Vault 15 декабря (согласно пост-мортему)?",
+    "expected_answer": "Корневой причиной стало истечение срока действия Root CA сертификата (выданного на 730 дней), который не обновлялся автоматически и не мониторился.",
+    "difficulty": "medium",
+    "category": "post-mortem",
+    "source_file": "vault-root-ca-expiration.md"
+  },
+  {
+    "id": "q_110",
+    "question": "Какое назначение файла указано в первой строке документа README_OLD.md?",
+    "expected_answer": "Назначение: \"CONF FILE FOR CRONTAB BACKUP\".",
+    "difficulty": "simple",
+    "category": "legacy",
+    "source_file": "README_OLD.md"
+  },
+  {
+    "id": "q_114",
+    "question": "Какой конкретно скрипт нужно запустить для миграции схемы базы данных?",
+    "expected_answer": "Скрипт миграции не указан. В тексте присутствуют только SQL-запросы (SELECT) и общие фразы про миграцию.",
+    "difficulty": "medium",
+    "category": "negative",
+    "source_file": "migration_todo_list.md"
+  },
+  {
+    "id": "q_115",
+    "question": "Какой телефон у Васи для экстренной связи?",
+    "expected_answer": "Телефон не указан. В тексте есть только рекомендация \"звоните Васе\", но номер отсутствует.",
+    "difficulty": "simple",
+    "category": "negative",
+    "source_file": "backup_config_old.md"
+  },
+  {
+    "id": "q_116",
+    "question": "Какое значение по умолчанию для переменной bucket_location?",
+    "expected_answer": "Переменная `bucket_location` не упоминается в данном списке изменений.",
+    "difficulty": "medium",
+    "category": "negative",
+    "source_file": "legacy-notes.md"
+  },
+  {
+    "id": "q_119",
+    "question": "В какой namespace Kubernetes нужно перенести приложение?",
+    "expected_answer": "Конкретный namespace не указан. Есть только общая фраза \"Надо бы перенести это в кубер\".",
+    "difficulty": "simple",
+    "category": "negative",
+    "source_file": "migration_todo_list.md"
+  },
+  {
+    "id": "q_141",
+    "question": "Какой максимальный Response Time для ACK алерта P0 согласно правилам On-Call в SRE Handbook?",
+    "expected_answer": "Не более 15 минут.",
+    "difficulty": "simple",
+    "category": "operations",
+    "source_file": "sre-engineering-handbook.md"
+  },
+  {
+    "id": "q_146",
+    "question": "Какой инструмент рекомендуется в плане DR для загрузки данных Cassandra при изменении топологии кластера?",
+    "expected_answer": "sstableloader — это наиболее надежный способ при изменении топологии. Команда: sstableloader -d <new_node_ip> /path/to/backup/my_keyspace/users/",
+    "difficulty": "medium",
+    "category": "troubleshooting",
+    "source_file": "cassandra-dr-runbook.md"
+  },
+  {
+    "id": "q_150",
+    "question": "Какое 'временное решение' упоминается в dump_postgres_schema_notes и сколько лет оно уже работает?",
+    "expected_answer": "Упоминается фраза 'Это временное решение (работает уже 3 года)'.",
+    "difficulty": "simple",
+    "category": "legacy",
+    "source_file": "dump_postgres_schema_notes.md"
+  },
+  {
+    "id": "q_154",
+    "question": "В файле chat_export_debug какие значения таймаутов (10ms, 500ms, 1s) чаще всего встречаются в сообщениях типа ERROR?",
+    "expected_answer": "В логах ERROR чаще всего встречаются таймауты 500ms и 10ms. Примеры: 'ERROR: Connection timeout in 500ms', 'ERROR: Connection timeout in 10ms'.",
+    "difficulty": "medium",
+    "category": "troubleshooting",
+    "source_file": "chat_export_debug.md"
+  },
+  {
+    "id": "q_155",
+    "question": "В chat_export_debug кому рекомендуется звонить, если система 'упадет'?",
+    "expected_answer": "Рекомендуется звонить Васе. Фраза: 'Если упадет — звоните Васе, он знает что делать.'",
+    "difficulty": "simple",
+    "category": "legacy",
+    "source_file": "chat_export_debug.md"
+  },
+  {
+    "id": "q_157",
+    "question": "Чем отличается настройка репликации PostgreSQL от MySQL в плане идентификации транзакций?",
+    "expected_answer": "PostgreSQL использует позиционирование по WAL-сегментам (wal_keep_segments) и Replication Slots для отслеживания позиции реплики. MySQL использует GTID (Global Transaction ID) — уникальный идентификатор для каждой транзакции. GTID упрощает переключение мастера, а в PostgreSQL нужно отслеживать LSN (Log Sequence Number).",
+    "difficulty": "hard",
+    "category": "cross_document",
+    "source_file": "11-postgresql-replication-guide.md"
+  },
+  {
+    "id": "q_160",
+    "question": "Какую команду SQL нужно выполнить на мастере PostgreSQL для проверки статуса подключенных реплик?",
+    "expected_answer": "SELECT client_addr, state FROM pg_stat_replication;",
+    "difficulty": "medium",
+    "category": "database",
+    "source_file": "11-postgresql-replication-guide.md"
+  },
+  {
+    "id": "q_163",
+    "question": "Какой параметр PostgreSQL включает возможность выполнения запросов на чтение на реплике (Hot Standby)?",
+    "expected_answer": "hot_standby = on",
+    "difficulty": "simple",
+    "category": "configuration",
+    "source_file": "11-postgresql-replication-guide.md"
+  },
+  {
+    "id": "q_166",
+    "question": "Какие параметры ethtool рекомендуется настроить для увеличения размера кольцевых буферов сетевой карты при высокой нагрузке?",
+    "expected_answer": "ethtool -G eth0 rx 4096 tx 4096 — увеличить RX и TX ring buffers до 4096.",
+    "difficulty": "hard",
+    "category": "tuning",
+    "source_file": "linux-network-performance-tuning.md"
+  },
+  {
+    "id": "q_167",
+    "question": "Какой порт используется для мониторинга Kafka Consumer Lag согласно документации?",
+    "expected_answer": "В документации stream-debug.md не указан конкретный порт для мониторинга Consumer Lag. Упоминается JMX и Prometheus, но порт не назван. Для JMX обычно используется 9999 или 9010, для Prometheus — 9308, но это не указано явно.",
+    "difficulty": "hard",
+    "category": "negative",
+    "source_file": "stream-debug.md"
+  }
+]

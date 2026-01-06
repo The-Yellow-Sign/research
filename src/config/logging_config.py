@@ -17,7 +17,6 @@ def setup_logging(level: int = logging.INFO) -> None:
     """
     root_logger = logging.getLogger()
     if root_logger.handlers:
-
         root_logger.handlers.clear()
 
     handler = logging.StreamHandler(sys.stdout)
@@ -31,7 +30,6 @@ def setup_logging(level: int = logging.INFO) -> None:
 
     root_logger.setLevel(level)
     root_logger.addHandler(handler)
-
 
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)

@@ -50,7 +50,7 @@ class PromptManager:
                 self._prompts = data.get("prompts", {})
             logger.info("Промпты успешно загружены из YAML")
         except Exception as e:
-            logger.error(f"Ошибка загрузки промптов: {e}")
+            logger.error("Ошибка загрузки промптов: %s", e)
             raise
 
     def get(self, key: str) -> str:
@@ -82,15 +82,10 @@ class PromptManager:
         """
         template = self.get(key)
         if not template:
-            logger.error(f"CRITICAL: Промпт '{key}' не найден или пуст")
+            logger.error("CRITICAL: Промпт '%s' не найден или пуст", key)
             raise ValueError(f"Промпт '{key}' отсутствует")
 
-
-
         return template.format(**kwargs)
-
-
-
 
 
 def format_analysis_prompt(query: str, content: str) -> str:
@@ -123,11 +118,15 @@ def format_query_rewrite_prompt(history_text: str, query: str) -> str:
     return manager.format("user_rewrite", history=history_text, query=query)
 
 
-
-
 _manager = PromptManager()
 
 SYSTEM_MAIN = _manager.get("system_main")
 SYSTEM_QUERY_EXPANSION = _manager.get("system_query_expansion")
 SYSTEM_ANALYZER = _manager.get("system_analyzer")
 SYSTEM_CLARIFY = _manager.get("system_clarify")
+
+RERANKER_PROMPT_SINGLE = _manager.get("reranker_prompt_single")
+RERANKER_PROMPT_BATCH = _manager.get("reranker_prompt_batch")
+JSON_FIX_PROMPT = _manager.get("json_fix_prompt")
+SUMMARY_PROMPT = _manager.get("summary_prompt")
+BATCH_SUMMARY_PROMPT = _manager.get("batch_summary_prompt")

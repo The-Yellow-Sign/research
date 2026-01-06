@@ -82,7 +82,6 @@ def update_file_hashes(client: OpenSearch, files: list[Path], deleted_paths: lis
     """Обновляет реестр файлов в OpenSearch (bulk update/delete)."""
     actions = []
 
-
     for path in deleted_paths:
         actions.append(
             {
@@ -92,11 +91,9 @@ def update_file_hashes(client: OpenSearch, files: list[Path], deleted_paths: lis
             }
         )
 
-
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
     for filepath in files:
-
         try:
             rel_path = str(filepath.relative_to(SOURCE_DIR))
         except ValueError:
@@ -133,9 +130,7 @@ def detect_file_changes(
     """Определяет изменения в файлах, сравнивая с БД."""
     stored_hashes = load_file_hashes(client)
 
-
     current_files = list(source_dir.glob("**/*.md"))
-
 
     current_files_map = {}
     for f in current_files:
@@ -147,7 +142,6 @@ def detect_file_changes(
 
     current_paths = set(current_files_map.keys())
     stored_paths = set(stored_hashes.keys())
-
 
     deleted_paths = stored_paths - current_paths
 

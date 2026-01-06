@@ -32,6 +32,7 @@ from src.config import (
     OPENSEARCH_PARENT_INDEX,
     OPENSEARCH_PORT,
 )
+from src.infrastructure.persistence.file_registry import ensure_opensearch_files_index
 
 logger = logging.getLogger(__name__)
 
@@ -143,8 +144,6 @@ def ensure_milvus_collection(vector_dim: int) -> Collection:
 
 def init_opensearch() -> OpenSearch:
     """Инициализирует OpenSearch-клиент и создаёт ВСЕ индексы."""
-    from src.infrastructure.persistence.file_registry import ensure_opensearch_files_index
-
     logger.info("Подключение к OpenSearch: %s:%s", OPENSEARCH_HOST, OPENSEARCH_PORT)
 
     client = OpenSearch(
@@ -194,7 +193,6 @@ def delete_by_source_file(
             logger.warning("Ошибка удаления children из OpenSearch для %s: %s", target_file, e)
 
         try:
-
             expr = f'source_file == "{target_file}"'
             milvus_collection.delete(expr)
         except Exception as e:
@@ -289,7 +287,6 @@ def index_children_to_milvus(
 
         prefixed_texts = [f"{DOC_PREFIX}{vt}" for vt in vector_texts]
 
-
         tokenizer = model.tokenizer
         for i, text in enumerate(prefixed_texts):
             tokens = len(tokenizer.encode(text))
@@ -321,7 +318,6 @@ def index_children_to_milvus(
         logger.info("Проиндексирован batch %d/%d в Milvus", batch_idx + 1, total_batches)
 
     collection.flush()
-
 
     if all_token_lengths:
         avg_tokens = sum(all_token_lengths) / len(all_token_lengths)

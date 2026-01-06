@@ -7,13 +7,16 @@
 - Генерация финальных ответов
 """
 
+import asyncio
 import hashlib
 import logging
 import time
 from collections import OrderedDict
 from typing import AsyncIterator
 
+import httpx
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -22,6 +25,10 @@ from tenacity import (
 )
 
 from src.application.prompts import (
+    BATCH_SUMMARY_PROMPT,
+    RERANKER_PROMPT_BATCH,
+    RERANKER_PROMPT_SINGLE,
+    SUMMARY_PROMPT,
     SYSTEM_ANALYZER,
     SYSTEM_CLARIFY,
     SYSTEM_MAIN,
@@ -29,10 +36,16 @@ from src.application.prompts import (
     format_analysis_prompt,
     format_query_rewrite_prompt,
 )
-from src.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, LLM_TIMEOUT, MAX_CONTEXT_CHARS
+from src.config import (
+    LLM_API_KEY,
+    LLM_BASE_URL,
+    LLM_MODEL,
+    LLM_TIMEOUT,
+    MAX_CONTEXT_CHARS,
+)
 from src.config.metrics import get_metrics_collector
 from src.config.telemetry import traced_operation
-from src.domain.models import DocAnalysis, QueryExpansion
+from src.domain.models import DocAnalysis, QueryExpansion, RerankerBatchResult, RerankerResult
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +66,22 @@ class LLMClient:
         """
         if client is not None:
             self.client = client
+            self._http_client = None
             logger.info("Используется переданный LLM-клиент")
         else:
+            self._http_client = httpx.AsyncClient(
+                limits=httpx.Limits(
+                    max_connections=200,
+                    max_keepalive_connections=50,
+                ),
+                timeout=httpx.Timeout(timeout=LLM_TIMEOUT),
+            )
             self.client = AsyncOpenAI(
                 api_key=LLM_API_KEY,
                 base_url=LLM_BASE_URL,
-                timeout=LLM_TIMEOUT,
+                http_client=self._http_client,
             )
-            logger.info("Создан LLM-клиент (timeout=%.0fs)", LLM_TIMEOUT)
-
+            logger.info("Создан LLM-клиент (timeout=%.0fs, pool=200)", LLM_TIMEOUT)
 
         self._expand_cache: OrderedDict[str, QueryExpansion] = OrderedDict()
         self._cache_max_size = 100
@@ -106,7 +126,7 @@ class LLMClient:
         metrics = get_metrics_collector()
         try:
             with traced_operation("llm.expand_query", {"model": LLM_MODEL}):
-                response = await self.client.beta.chat.completions.parse(
+                response = await self.client.chat.completions.parse(
                     model=LLM_MODEL,
                     messages=[
                         {"role": "system", "content": SYSTEM_QUERY_EXPANSION},
@@ -121,17 +141,13 @@ class LLMClient:
                 )
                 result = response.choices[0].message.parsed
 
-
                 if result and result.variations:
                     result.variations = [v[:100] for v in result.variations]
 
                 duration = time.perf_counter() - t0
                 tokens_in = len(query) // 4 + 200
                 tokens_out = len(str(result)) // 4
-                metrics.record_llm_call(
-                    "expand_query", duration, tokens_in, tokens_out, LLM_MODEL
-                )
-
+                metrics.record_llm_call("expand_query", duration, tokens_in, tokens_out, LLM_MODEL)
 
                 self._expand_cache[cache_key] = result
                 if len(self._expand_cache) > self._cache_max_size:
@@ -167,7 +183,7 @@ class LLMClient:
         t0 = time.perf_counter()
         metrics = get_metrics_collector()
         try:
-            response = await self.client.beta.chat.completions.parse(
+            response = await self.client.chat.completions.parse(
                 model=LLM_MODEL,
                 messages=[
                     {"role": "system", "content": SYSTEM_ANALYZER},
@@ -181,9 +197,7 @@ class LLMClient:
             duration = time.perf_counter() - t0
             tokens_in = len(content) // 4 + len(query) // 4 + 100
             tokens_out = len(str(result)) // 4 if result else 0
-            metrics.record_llm_call(
-                "analyze_document", duration, tokens_in, tokens_out, LLM_MODEL
-            )
+            metrics.record_llm_call("analyze_document", duration, tokens_in, tokens_out, LLM_MODEL)
             return result
         except Exception as e:
             metrics.record_llm_call(
@@ -191,6 +205,186 @@ class LLMClient:
             )
             logger.warning("Ошибка анализа документа: %s", e)
             return None
+
+    async def rerank_batch(
+        self,
+        query: str,
+        documents: list[dict],
+        batch_size: int = 5,
+    ) -> list[float]:
+        """Реранкинг документов через LLM (по образцу RAG-Challenge-2).
+
+        Оценивает документы батчами для эффективности.
+        Возвращает список оценок 0.0-1.0 для каждого документа.
+
+        Args:
+            query: Запрос пользователя.
+            documents: Список документов с 'raw_content'.
+            batch_size: Размер батча (по умолчанию 3).
+
+        Returns:
+            Список оценок релевантности [0.0-1.0].
+
+        """
+        scores = []
+        batches = [documents[i : i + batch_size] for i in range(0, len(documents), batch_size)]
+
+        tasks = [self._process_batch_rerank(query, batch) for batch in batches]
+        results = await asyncio.gather(*tasks)
+
+        for batch_res in results:
+            scores.extend(batch_res)
+
+        return scores
+
+    async def _process_batch_rerank(self, query: str, batch_docs: list[dict]) -> list[float]:
+        """Обрабатывает один батч документов для реранкинга."""
+        batch_scores = []
+        if len(batch_docs) == 1:
+            content = batch_docs[0].get("raw_content", "")[:3000]
+            prompt = f"{RERANKER_PROMPT_SINGLE}\n\nQuery: {query}\n\nDocument:\n---\n{content}\n---"
+
+            try:
+                response = await self.client.chat.completions.parse(
+                    model=LLM_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format=RerankerResult,
+                    temperature=0.0,
+                    max_tokens=300,
+                )
+                result = response.choices[0].message.parsed
+                batch_scores.append(result.relevance_score if result else 0.5)
+            except Exception as e:
+                logger.warning("Rerank single error: %s", e)
+                batch_scores.append(0.5)
+        else:
+            blocks_text = ""
+            for idx, doc in enumerate(batch_docs, 1):
+                content = doc.get("raw_content", "")[:2000]
+                blocks_text += f"\n[Block {idx}]:\n{content}\n"
+
+            prompt = f"{RERANKER_PROMPT_BATCH}\n\nQuery: {query}\n{blocks_text}"
+
+            try:
+                response = await self.client.chat.completions.parse(
+                    model=LLM_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format=RerankerBatchResult,
+                    temperature=0.0,
+                    max_tokens=500,
+                )
+                result = response.choices[0].message.parsed
+                if result and result.block_rankings:
+                    for ranking in result.block_rankings[: len(batch_docs)]:
+                        batch_scores.append(ranking.relevance_score)
+                    while len(batch_scores) < len(batch_docs):
+                        batch_scores.append(0.5)
+                else:
+                    batch_scores.extend([0.5] * len(batch_docs))
+            except Exception as e:
+                logger.warning("Rerank batch error: %s", e)
+                batch_scores.extend([0.5] * len(batch_docs))
+
+        return batch_scores
+
+    async def summarize_document(
+        self,
+        content: str,
+    ) -> str:
+        """Сжимает текст документа, сохраняя ключевую информацию.
+
+        Использует LLM для генерации саммари (сжатого содержания).
+        Если процессинг не удался, возвращает исходный текст.
+
+        Args:
+            content: Исходный текст документа.
+
+        Returns:
+            Сжатый текст или оригинал в случае ошибки.
+
+        """
+        if not content:
+            return ""
+
+        try:
+            prompt = f"{SUMMARY_PROMPT}\n\nТекст:\n---\n{content}\n---\nСжатый текст:"
+
+            response = await self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+            )
+
+            summary = response.choices[0].message.content
+            return summary.strip() if summary else content
+
+        except Exception as e:
+            logger.warning("Ошибка суммаризации (возвращаем оригинал): %s", e)
+            return content
+
+    async def summarize_batch(
+        self,
+        contents: list[str],
+    ) -> list[str]:
+        """Batch summarization — сжимает несколько документов за один LLM вызов.
+
+        Args:
+            contents: Список текстов документов.
+
+        Returns:
+            Список сжатых текстов в том же порядке.
+
+        """
+        if not contents:
+            return []
+
+        class BatchSummaryResponse(BaseModel):
+            summaries: list[str]
+
+        MAX_CHARS_PER_DOC = 2000
+        docs_xml = "\n".join(
+            [
+                f"<doc id='{i}'>{content[:MAX_CHARS_PER_DOC]}</doc>"
+                for i, content in enumerate(contents, 1)
+            ]
+        )
+
+        try:
+            response = await self.client.chat.completions.parse(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": BATCH_SUMMARY_PROMPT},
+                    {"role": "user", "content": docs_xml},
+                ],
+                response_format=BatchSummaryResponse,
+                temperature=0.3,
+                max_tokens=2500,
+            )
+
+            result = response.choices[0].message.parsed
+            if result and result.summaries:
+                if len(result.summaries) == len(contents):
+                    logger.info(
+                        "Batch summarization: %d документов сжато за 1 вызов",
+                        len(contents),
+                    )
+                    return result.summaries
+                else:
+                    logger.warning(
+                        "Batch summarization: получено %d сжатий вместо %d",
+                        len(result.summaries),
+                        len(contents),
+                    )
+                    summaries = list(result.summaries)
+                    for i in range(len(summaries), len(contents)):
+                        summaries.append(contents[i][:MAX_CHARS_PER_DOC])
+                    return summaries
+
+            return contents
+
+        except Exception as e:
+            logger.warning("Batch summarization failed, returning originals: %s", e)
+            return contents
 
     async def generate_clarifying_question(self, original_query: str) -> str:
         """Генерирует уточняющий вопрос, когда поиск не дал релевантных результатов.
@@ -217,8 +411,11 @@ class LLMClient:
             result = response.choices[0].message.content
             duration = time.perf_counter() - t0
             metrics.record_llm_call(
-                "clarifying_question", duration, len(original_query) // 4 + 50,
-                len(result) // 4 if result else 0, LLM_MODEL
+                "clarifying_question",
+                duration,
+                len(original_query) // 4 + 50,
+                len(result) // 4 if result else 0,
+                LLM_MODEL,
             )
             return result
         except Exception as e:
@@ -253,15 +450,11 @@ class LLMClient:
 
         """
         if len(context_xml) > MAX_CONTEXT_CHARS:
-            logger.warning(
-                "Context truncated: %d -> %d chars",
-                len(context_xml), MAX_CONTEXT_CHARS
-            )
+            logger.warning("Context truncated: %d -> %d chars", len(context_xml), MAX_CONTEXT_CHARS)
             context_xml = context_xml[:MAX_CONTEXT_CHARS] + "\n</documents>"
 
         t0 = time.perf_counter()
         metrics = get_metrics_collector()
-
 
         @retry(
             stop=stop_after_attempt(3),
@@ -289,9 +482,7 @@ class LLMClient:
             duration = time.perf_counter() - t0
             tokens_in = len(context_xml) // 4 + len(query) // 4 + 200
             tokens_out = len(result) // 4 if result else 0
-            metrics.record_llm_call(
-                "generate_answer", duration, tokens_in, tokens_out, LLM_MODEL
-            )
+            metrics.record_llm_call("generate_answer", duration, tokens_in, tokens_out, LLM_MODEL)
             return result
         except Exception as e:
             metrics.record_llm_call(
@@ -334,8 +525,7 @@ class LLMClient:
         """
         if len(context_xml) > MAX_CONTEXT_CHARS:
             logger.warning(
-                "Context truncated (stream): %d -> %d chars",
-                len(context_xml), MAX_CONTEXT_CHARS
+                "Context truncated (stream): %d -> %d chars", len(context_xml), MAX_CONTEXT_CHARS
             )
             context_xml = context_xml[:MAX_CONTEXT_CHARS] + "\n</documents>"
 
@@ -361,7 +551,6 @@ class LLMClient:
                     content = chunk.choices[0].delta.content
                     total_chars += len(content)
                     yield content
-
 
             duration = time.perf_counter() - t0
             tokens_in = len(context_xml) // 4 + len(query) // 4 + 200

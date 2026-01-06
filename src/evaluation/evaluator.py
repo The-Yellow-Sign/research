@@ -126,6 +126,7 @@ class RAGEvaluator:
                 retrieved_contexts=contexts,
                 latency_sec=rag_latency,
                 answer_type=response.answer_type,
+                timings=response.timings,
             )
         except Exception as e:
             logger.error("Ошибка RAG для %s: %s", result.id, e)
@@ -138,15 +139,17 @@ class RAGEvaluator:
         items = []
         for r in results:
             if r.rag_output:
-                items.append({
-                    "question": r.question,
-                    "expected_answer": r.expected_answer,
-                    "generated_answer": r.rag_output.generated_answer,
-                    "retrieved_contexts": [
-                        {"source": c.source, "content": c.content}
-                        for c in r.rag_output.retrieved_contexts
-                    ],
-                })
+                items.append(
+                    {
+                        "question": r.question,
+                        "expected_answer": r.expected_answer,
+                        "generated_answer": r.rag_output.generated_answer,
+                        "retrieved_contexts": [
+                            {"source": c.source, "content": c.content}
+                            for c in r.rag_output.retrieved_contexts
+                        ],
+                    }
+                )
         return items
 
     def _assign_ragas_scores(
@@ -182,7 +185,6 @@ class RAGEvaluator:
         if not pending:
             return self.results
 
-
         semaphore = asyncio.Semaphore(max_concurrent)
         completed = len(self.results)
 
@@ -198,7 +200,6 @@ class RAGEvaluator:
         tasks = [run_with_limit(item) for item in pending]
         rag_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-
         valid_results = []
         for r in rag_results:
             if isinstance(r, EvaluationResult) and not r.error:
@@ -206,7 +207,6 @@ class RAGEvaluator:
             elif isinstance(r, EvaluationResult):
                 self.results.append(r)
                 self.processed_ids.add(r.id)
-
 
         if valid_results:
             logger.info("Запуск RAGAS оценки для %d вопросов...", len(valid_results))
@@ -225,9 +225,7 @@ class RAGEvaluator:
 
         by_category = {}
         for cat in {r.category for r in self.results if r.category}:
-            by_category[cat] = self._compute_summary(
-                [r for r in self.results if r.category == cat]
-            )
+            by_category[cat] = self._compute_summary([r for r in self.results if r.category == cat])
 
         by_difficulty = {}
         for diff in {r.difficulty for r in self.results if r.difficulty}:
@@ -272,5 +270,24 @@ class RAGEvaluator:
             rag_latencies = [r.rag_output.latency_sec for r in successful if r.rag_output]
             if rag_latencies:
                 summary.avg_rag_latency_sec = sum(rag_latencies) / len(rag_latencies)
+
+            timings_list = [
+                r.rag_output.timings for r in successful if r.rag_output and r.rag_output.timings
+            ]
+            if timings_list:
+                n_timings = len(timings_list)
+                summary.avg_query_expansion_sec = (
+                    sum(t.get("query_expansion", 0) for t in timings_list) / n_timings
+                )
+                summary.avg_retrieve_sec = (
+                    sum(t.get("retrieve", 0) for t in timings_list) / n_timings
+                )
+                summary.avg_rerank_sec = sum(t.get("rerank", 0) for t in timings_list) / n_timings
+                summary.avg_llm_analysis_sec = (
+                    sum(t.get("llm_analysis", 0) for t in timings_list) / n_timings
+                )
+                summary.avg_llm_generation_sec = (
+                    sum(t.get("llm_generation", 0) for t in timings_list) / n_timings
+                )
 
         return summary

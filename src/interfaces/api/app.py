@@ -1,12 +1,13 @@
 """FastAPI веб-API для RAG-сервиса.
 
-Тонкая обёртка над RAGService, предоставляющая HTTP-эндпоинты.
+Обёртка над RAGService, предоставляющая HTTP-эндпоинты.
 """
 
 import logging
 from contextlib import asynccontextmanager
 from typing import Annotated, AsyncGenerator
 
+import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from opensearchpy.exceptions import ConnectionError as OpenSearchConnectionError
@@ -15,6 +16,7 @@ from pymilvus.exceptions import MilvusException
 from src.application import RAGService
 from src.application.dto import ChatRequest, ChatResponse
 from src.config.logging_config import setup_logging
+from src.config.settings import settings
 from src.config.telemetry import instrument_fastapi, setup_telemetry
 from src.infrastructure.search import SearchEngine
 
@@ -38,8 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         logger.info("Все сервисы успешно инициализированы")
     except Exception as e:
-        logger.critical(f"FATAL: Ошибка инициализации сервисов: {e}")
-
+        logger.critical("FATAL: Ошибка инициализации сервисов: %s", e)
 
         raise e
 
@@ -57,10 +58,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -95,11 +96,9 @@ async def readiness_probe(request: Request) -> dict[str, str | dict[str, bool]]:
     """
     checks: dict[str, bool] = {}
 
-
     search_engine = getattr(request.app.state, "search_engine", None)
     if search_engine:
         try:
-
             search_engine.opensearch_client.info()
             checks["opensearch"] = True
         except Exception:
@@ -113,7 +112,6 @@ async def readiness_probe(request: Request) -> dict[str, str | dict[str, bool]]:
     else:
         checks["opensearch"] = False
         checks["milvus"] = False
-
 
     rag_service = getattr(request.app.state, "rag_service", None)
     if rag_service:
@@ -131,6 +129,7 @@ async def readiness_probe(request: Request) -> dict[str, str | dict[str, bool]]:
         "checks": checks,
     }
 
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
@@ -142,14 +141,13 @@ async def chat(
         return response
 
     except (OpenSearchConnectionError, MilvusException) as e:
-        logger.error(f"Ошибка подключения к БД: {e}")
+        logger.error("Ошибка подключения к БД: %s", e)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Временная ошибка базы знаний. Попробуйте позже.",
         ) from e
     except ValueError as e:
-
-        logger.warning(f"Ошибка валидации/данных: {e}")
+        logger.warning("Ошибка валидации/данных: %s", e)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
@@ -163,11 +161,10 @@ async def chat(
 
 
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run(
-        "src.api:app",
-        host="127.0.0.1",  # noqa: S104
-        port=8000,
-        reload=True,
+        "src.interfaces.api.app:app",
+        host=settings.server_host,
+        port=settings.server_port,
+        reload=settings.reload,
+        log_level="info",
     )

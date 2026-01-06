@@ -23,16 +23,12 @@ from src.application.services import RAGService
 from src.application.use_cases import DocumentAnalyzer, QueryExpander, QueryProcessor
 
 __all__ = [
-
     "ChatRequest",
     "ChatResponse",
-
     "QueryProcessor",
     "QueryExpander",
     "DocumentAnalyzer",
-
     "RAGService",
-
     "PromptManager",
     "format_analysis_prompt",
     "format_query_rewrite_prompt",

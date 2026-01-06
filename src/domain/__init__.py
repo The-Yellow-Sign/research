@@ -25,19 +25,16 @@ from src.domain.services import (
 )
 
 __all__ = [
-
     "ExtractedBlock",
     "generate_parent_id",
     "QueryExpansion",
     "DocAnalysis",
     "SourceDoc",
-
     "parse_frontmatter",
     "infer_service_from_path",
     "build_header_path",
     "process_markdown_ast",
     "build_vector_text",
-
     "LLMPort",
     "VectorStorePort",
     "DocumentStorePort",

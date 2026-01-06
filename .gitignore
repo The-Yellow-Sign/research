@@ -1,7 +1,10 @@
 .DS_Store
 **/.DS_Store
 
-volumes/
+volumes/etcd
+volumes/milvus
+volumes/opensearch
+volumes/minio
 
 __pycache__/
 *.py[codz]
@@ -121,5 +124,4 @@ __marimo__/
 .streamlit/secrets.toml
 
 .file_hashes.json
-ARCHITECTURE.md
-CHANGELOG.md
+/docs

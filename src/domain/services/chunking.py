@@ -7,7 +7,6 @@
 - process_markdown_ast — AST-парсинг markdown
 - build_vector_text — создание обогащённого текста для эмбеддинга
 
-Этот модуль НЕ зависит от infrastructure (БД, файловая система).
 """
 
 import logging
