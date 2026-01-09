@@ -1,11 +1,12 @@
-"""Use Case: Обработка запросов (Query Processor).
+"""Use Case: Обработчик запросов (Query Processor).
 
-Главный оркестратор RAG-пайплайна:
-1. Query Expansion
-2. Retrieve (Milvus + OpenSearch)
-3. Rerank
-4. LLM Analysis (Context Compression)
-5. Generate Answer
+Главный оркестратор RAG-пайплайна, координирующий все этапы обработки:
+1. Query Expansion — расширение и перефразирование запроса
+2. Hybrid Retrieve — параллельный поиск в Milvus и OpenSearch
+3. RRF Fusion — объединение результатов
+4. BGE Rerank — реранжирование через Cross-Encoder
+5. LLM Analysis — анализ релевантности и сжатие контекста
+6. Generation — генерация финального ответа
 """
 
 import asyncio
@@ -34,11 +35,14 @@ logger = logging.getLogger(__name__)
 class QueryProcessor:
     """Главный оркестратор RAG-пайплайна.
 
-    Координирует все этапы обработки запроса:
-    - Query Expansion через LLM
-    - Гибридный поиск (Milvus + OpenSearch)
-    - Context Compression через LLM-анализ
-    - Генерация ответа
+    Координирует полный цикл обработки пользовательского запроса:
+    от Query Expansion до генерации финального ответа с источниками.
+
+    Attributes:
+        llm: LLM-клиент для генерации и анализа.
+        search_engine: Движок гибридного поиска.
+        query_expander: Компонент расширения запросов.
+        document_analyzer: Анализатор релевантности документов.
 
     """
 
@@ -47,11 +51,11 @@ class QueryProcessor:
         llm: LLMPort,
         search_engine: "SearchEngine",
     ) -> None:
-        """Инициализация процессора запросов.
+        """Инициализирует процессор запросов.
 
         Args:
-            llm: LLM-клиент, реализующий LLMPort.
-            search_engine: Движок гибридного поиска.
+            llm: LLM-клиент, реализующий интерфейс LLMPort.
+            search_engine: Движок гибридного поиска с реранкингом.
 
         """
         self.llm = llm
@@ -62,19 +66,14 @@ class QueryProcessor:
     async def process(self, request: ChatRequest) -> ChatResponse:
         """Обрабатывает запрос через полный RAG-пайплайн.
 
-        Этапы:
-        1. Расширение запроса (Query Expansion)
-        2. Параллельный гибридный поиск
-        3. Объединение и дедупликация результатов
-        4. Rerank
-        5. LLM-анализ (Context Compression)
-        6. Генерация финального ответа
+        Выполняет последовательно все этапы обработки с замером времени.
+        При отсутствии релевантных документов генерирует уточняющий вопрос.
 
         Args:
-            request: ChatRequest с запросом и историей.
+            request: ChatRequest с запросом пользователя и историей диалога.
 
         Returns:
-            ChatResponse с ответом и источниками.
+            ChatResponse с ответом, источниками и временными метриками.
 
         """
         timings: dict[str, float] = {}
@@ -114,12 +113,16 @@ class QueryProcessor:
                 request.query, expansion.rewritten_query
             )
 
+        query_entities = self._extract_keywords_from_variations(expansion.variations)
+
         t0 = time.perf_counter()
         docs = await asyncio.to_thread(
             self.search_engine.rerank_candidates,
             expansion.rewritten_query,
             merged_candidates,
             FINAL_TOP_K,
+            False,
+            query_entities,
         )
         timings["rerank"] = time.perf_counter() - t0
 
@@ -185,10 +188,16 @@ class QueryProcessor:
         )
 
     async def process_stream(self, request: ChatRequest) -> AsyncIterator[str]:
-        """Streaming-версия process.
+        """Streaming-версия обработки запроса.
+
+        Выполняет те же этапы что и process(), но возвращает токены
+        ответа по мере их генерации для real-time UI.
+
+        Args:
+            request: ChatRequest с запросом пользователя.
 
         Yields:
-            Токены ответа по мере генерации.
+            Токены ответа и JSON с источниками в конце.
 
         """
         expansion = await self.query_expander.expand(request.query, request.history)
@@ -241,14 +250,17 @@ class QueryProcessor:
         original_query: str,
         rewritten_query: str,
     ) -> ChatResponse:
-        """Генерирует уточняющий вопрос при отсутствии релевантных документов.
+        """Генерирует уточняющий вопрос при отсутствии документов.
+
+        Вызывается когда поиск не нашёл релевантных документов.
+        LLM генерирует вопрос для уточнения намерения пользователя.
 
         Args:
             original_query: Исходный запрос пользователя.
-            rewritten_query: Переписанный запрос, использованный для поиска.
+            rewritten_query: Переписанный запрос после Query Expansion.
 
         Returns:
-            ChatResponse с уточняющим вопросом.
+            ChatResponse с типом clarifying_question.
 
         """
         clarifying_question = await self.llm.generate_clarifying_question(original_query)
@@ -259,19 +271,50 @@ class QueryProcessor:
             rewritten_query=rewritten_query,
         )
 
+    def _extract_keywords_from_variations(
+        self,
+        variations: list[str],
+    ) -> dict[str, list[str]]:
+        """Извлекает ключевые слова из результатов Query Expansion.
+
+        Парсит variations[0] (Strict Keywords) для использования
+        в Entity Boost при реранкинге. Быстрее отдельного NER.
+
+        Args:
+            variations: Список вариаций запроса от Query Expansion.
+
+        Returns:
+            Словарь {"keyword": [список ключевых слов]} для Entity Boost.
+
+        """
+        if not variations:
+            return {}
+
+        strict_keywords = variations[0].lower().split()
+
+        stop_words = {"the", "and", "for", "with", "how", "why", "what"}
+        keywords = [kw for kw in strict_keywords if len(kw) >= 3 and kw not in stop_words]
+
+        if keywords:
+            logger.debug("Keywords from variations[0]: %s", keywords)
+            return {"keyword": keywords}
+
+        return {}
+
     def _merge_candidates(
         self,
         candidates_list: list[dict[str, dict[str, Any]]],
     ) -> dict[str, dict[str, Any]]:
-        """Объединяет кандидатов с суммированием RRF-скоров.
+        """Объединяет кандидатов из нескольких поисковых запросов.
+
+        При пересечении суммирует RRF-скоры для учёта
+        множественных подтверждений релевантности.
 
         Args:
-            candidates_list: Список словарей кандидатов, где каждый словарь представляет
-                             результаты одного поискового запроса.
+            candidates_list: Результаты параллельных поисковых запросов.
 
         Returns:
-            Словарь объединенных кандидатов, где ключом является ID документа,
-            а значения содержат информацию о документе и суммарный RRF-скор.
+            Объединённый словарь кандидатов с суммарными скорами.
 
         """
         merged: dict[str, dict[str, Any]] = {}
@@ -286,14 +329,16 @@ class QueryProcessor:
         return merged
 
     def _build_context_xml(self, search_results: list[dict[str, Any]]) -> str:
-        """Формирует XML-контекст для LLM.
+        """Формирует XML-контекст для промпта LLM.
+
+        Структурирует документы в XML-формат с экранированием
+        специальных символов для безопасной передачи в LLM.
 
         Args:
-            search_results: Список словарей с результатами поиска,
-                            каждый из которых представляет документ.
+            search_results: Список отранжированных документов.
 
         Returns:
-            Строка в формате XML, содержащая информацию о документах для LLM.
+            XML-строка с документами для контекста генерации.
 
         """
         context_parts = ["<documents>"]
@@ -314,14 +359,13 @@ class QueryProcessor:
         return "\n".join(context_parts)
 
     async def _summarize_docs(self, docs: list[dict[str, Any]]) -> None:
-        """Сжимает документы одним LLM вызовом (in-place update).
+        """Сжимает документы через LLM (режим full).
+
+        Обновляет поле summary_content in-place для каждого документа.
+        Используется только при RAG_MODE="full".
 
         Args:
-            docs: Список словарей, представляющих документы.
-                  Поле 'summary_content' будет обновлено сжатым содержимым.
-
-        Returns:
-            None. Обновление происходит in-place.
+            docs: Список документов для сжатия.
 
         """
         if not docs:
@@ -338,10 +382,10 @@ class QueryProcessor:
         """Конвертирует результаты поиска в DTO источников.
 
         Args:
-            search_results: Список словарей с результатами поиска.
+            search_results: Список документов после анализа.
 
         Returns:
-            Список объектов SourceDoc, представляющих источники.
+            Список SourceDoc объектов для включения в ответ.
 
         """
         sources = []
@@ -367,7 +411,19 @@ class QueryProcessor:
         analyzed_docs: list[dict[str, Any]],
         merged_candidates: dict[str, dict[str, Any]],
     ) -> None:
-        """Записывает метрики pipeline."""
+        """Записывает метрики выполнения пайплайна.
+
+        Логирует временные метрики и отправляет в MetricsCollector
+        для последующего анализа производительности.
+
+        Args:
+            timings: Словарь с временами выполнения этапов.
+            request: Исходный запрос.
+            docs: Документы до фильтрации.
+            analyzed_docs: Документы после LLM-фильтрации.
+            merged_candidates: Объединённые кандидаты.
+
+        """
         total_time = sum(timings.values())
         logger.info(
             "Pipeline: %.2fs | Expand: %.2fs | Retrieve: %.2fs | Rerank: %.2fs | "

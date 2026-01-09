@@ -1,12 +1,11 @@
-"""Доменный сервис чанкинга.
+"""Доменный сервис чанкинга документов.
 
-Содержит чистую бизнес-логику разбиения документов:
-- parse_frontmatter — извлечение YAML frontmatter
-- infer_service_from_path — определение сервиса по пути
-- build_header_path — построение breadcrumb-пути
-- process_markdown_ast — AST-парсинг markdown
-- build_vector_text — создание обогащённого текста для эмбеддинга
-
+Содержит чистую бизнес-логику разбиения markdown-документов на чанки:
+- Извлечение YAML frontmatter
+- Определение сервиса по структуре пути (DDD-подход)
+- Построение breadcrumb-путей по заголовкам
+- AST-парсинг markdown через Marko
+- Создание обогащённого текста для векторных эмбеддингов
 """
 
 import logging
@@ -24,64 +23,34 @@ from src.domain.models.document import ExtractedBlock
 logger = logging.getLogger(__name__)
 
 
-KNOWN_SERVICES: set[str] = {
-    "nginx",
-    "apache",
-    "mysql",
-    "postgres",
-    "postgresql",
-    "redis",
-    "mongodb",
-    "mongo",
-    "k8s",
-    "kubernetes",
-    "docker",
-    "ansible",
-    "jenkins",
-    "gitlab",
-    "python",
-    "java",
-    "go",
-    "golang",
-    "nodejs",
-    "node",
-    "elasticsearch",
-    "rabbitmq",
-    "prometheus",
-    "grafana",
-    "ssh",
-    "git",
-    "linux",
-    "terraform",
-    "aws",
-    "azure",
-    "gcp",
-}
-
-SERVICE_ALIASES: dict[str, str] = {
-    "k8s": "kubernetes",
-    "kubernetes": "kubernetes",
-    "postgres": "postgres",
-    "postgresql": "postgres",
-    "mongo": "mongodb",
-    "mongodb": "mongodb",
-    "node": "nodejs",
-    "nodejs": "nodejs",
-    "golang": "go",
-}
-
-
 _marko_parser = gfm
+
+_SKIP_FOLDERS: set[str] = {
+    "docs",
+    "documentation",
+    "wiki",
+    "examples",
+    "samples",
+    "src",
+    "lib",
+    "pkg",
+    ".",
+    "..",
+}
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    """Извлекает YAML frontmatter из markdown-содержимого.
+    """Извлекает YAML frontmatter из начала markdown-документа.
+
+    Frontmatter — это YAML-блок в начале файла между тройными дефисами.
+    Содержит метаданные документа: title, tags, service и т.д.
 
     Args:
         text: Полный текст markdown-документа.
 
     Returns:
-        Кортеж (frontmatter_dict, content_without_frontmatter).
+        Кортеж из словаря frontmatter и текста без frontmatter.
+        При отсутствии frontmatter возвращает пустой словарь.
 
     """
     pattern = r"^---\n(.*?)\n---\n"
@@ -98,31 +67,119 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return {}, text.strip()
 
 
-def infer_service_from_path(filepath: Path) -> str | None:
-    """Определяет сервис по названию родительских папок.
+def infer_service_from_path(filepath: Path, source_dir: Path | None = None) -> str | None:
+    """Определяет название сервиса по структуре пути файла.
+
+    Использует DDD-подход: первая не-служебная папка в пути
+    считается названием bounded context (сервиса).
+
+    Служебные папки (docs, src, lib, etc.) пропускаются.
 
     Args:
-        filepath: Путь к файлу.
+        filepath: Путь к файлу документа.
+        source_dir: Корневая директория источников для вычисления relative path.
 
     Returns:
-        Название сервиса или None, если не определено.
+        Нормализованное название сервиса (lowercase, дефисы) или None.
 
     """
-    for part in reversed(filepath.parent.parts):
-        part_lower = part.lower()
-        if part_lower in KNOWN_SERVICES:
-            return SERVICE_ALIASES.get(part_lower, part_lower)
+    if source_dir:
+        try:
+            relative = filepath.relative_to(source_dir)
+            parts = list(relative.parent.parts)
+        except ValueError:
+            parts = list(filepath.parent.parts)
+    else:
+        parts = list(filepath.parent.parts)
+
+    for part in parts:
+        if part.lower() not in _SKIP_FOLDERS:
+            return part.lower().replace("_", "-")
+
     return None
 
 
-def build_header_path(metadata: dict[str, Any]) -> str:
-    """Строит breadcrumb-путь из метаданных заголовков.
+_DOC_TYPE_HINTS: dict[str, str] = {
+    "troubleshoot": "troubleshooting",
+    "debug": "troubleshooting",
+    "install": "installation",
+    "setup": "installation",
+    "deploy": "deployment",
+    "config": "configuration",
+    "api": "api_reference",
+    "readme": "overview",
+    "guide": "tutorial",
+    "tutorial": "tutorial",
+    "example": "examples",
+}
+
+
+def extract_path_metadata(filepath: Path, source_dir: Path | None = None) -> dict[str, Any]:
+    """Извлекает метаданные из структуры пути файла.
+
+    Анализирует путь для определения репозитория, типа документа
+    и категории на основе имени файла и названий папок.
 
     Args:
-        metadata: Метаданные с ключами header_1, header_2, header_3.
+        filepath: Путь к файлу документа.
+        source_dir: Корневая директория источников.
 
     Returns:
-        Строка вида "Header1 > Header2 > Header3" или путь к файлу.
+        Словарь с ключами: filename, path_parts, repo, doc_type, category.
+
+    """
+    if source_dir:
+        try:
+            relative = filepath.relative_to(source_dir)
+        except ValueError:
+            relative = filepath
+    else:
+        relative = filepath
+
+    parts = list(relative.parts)
+    filename = parts[-1].replace(".md", "").replace(".MD", "")
+    folder_parts = parts[:-1]
+
+    metadata: dict[str, Any] = {
+        "filename": filename,
+        "path_parts": folder_parts,
+    }
+
+    skip_folders = {"docs", "documentation", "wiki", "src", "lib", "pkg"}
+    for part in folder_parts:
+        if part.lower() not in skip_folders:
+            metadata["repo"] = part.lower().replace("_", "-")
+            break
+
+    filename_lower = filename.lower()
+    for hint, doc_type in _DOC_TYPE_HINTS.items():
+        if hint in filename_lower:
+            metadata["doc_type"] = doc_type
+            break
+
+    for part in folder_parts:
+        part_lower = part.lower()
+        if part_lower in ("docs", "documentation", "wiki"):
+            metadata["category"] = "documentation"
+            break
+        if part_lower in ("examples", "samples"):
+            metadata["category"] = "examples"
+            break
+
+    return metadata
+
+
+def build_header_path(metadata: dict[str, Any]) -> str:
+    """Строит breadcrumb-путь из иерархии заголовков.
+
+    Формирует читаемый путь навигации по документу
+    на основе вложенных заголовков H1 > H2 > H3.
+
+    Args:
+        metadata: Словарь с ключами header_1, header_2, header_3.
+
+    Returns:
+        Строка вида "Header1 > Header2 > Header3" или fallback на имя файла.
 
     """
     headers = [
@@ -134,15 +191,17 @@ def build_header_path(metadata: dict[str, Any]) -> str:
 
 
 def process_markdown_ast(text: str) -> tuple[str, list[ExtractedBlock]]:
-    """Парсит Markdown через AST (Marko) для безопасного извлечения блоков.
+    """Парсит Markdown через AST для извлечения структурных блоков.
 
-    Извлекает блоки кода и таблицы, заменяя их на плейсхолдеры.
+    Использует Marko GFM (GitHub Flavored Markdown) для разбора.
+    Извлекает блоки кода и таблицы, заменяя их на плейсхолдеры
+    для последующей обработки.
 
     Args:
-        text: Текст markdown-секции.
+        text: Текст markdown-секции для парсинга.
 
     Returns:
-        Кортеж (текст_с_плейсхолдерами, список_блоков).
+        Кортеж: (текст с плейсхолдерами, список ExtractedBlock объектов).
 
     """
     parsed = _marko_parser.parse(text)
@@ -174,15 +233,18 @@ def process_markdown_ast(text: str) -> tuple[str, list[ExtractedBlock]]:
 
 
 def build_vector_text(service: str, header_path: str, chunk_text: str) -> str:
-    """Строит обогащённый текст для векторного эмбеддинга.
+    """Создаёт обогащённый текст для векторного эмбеддинга.
+
+    Объединяет контекстную информацию (сервис, путь заголовков)
+    с текстом чанка для улучшения качества семантического поиска.
 
     Args:
-        service: Название сервиса.
-        header_path: Breadcrumb-путь заголовков.
-        chunk_text: Текст чанка.
+        service: Название сервиса/bounded context.
+        header_path: Breadcrumb-путь по заголовкам документа.
+        chunk_text: Основной текст чанка.
 
     Returns:
-        Обогащённый текст формата "service > header_path : chunk_text".
+        Форматированная строка: "service > header_path : chunk_text".
 
     """
     return f"{service} > {header_path} : {chunk_text}"

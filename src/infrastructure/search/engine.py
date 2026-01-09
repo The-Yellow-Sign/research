@@ -1,10 +1,10 @@
 """Движок гибридного поиска с Parent-Document Retrieval.
 
-Координирует:
-- MilvusClient для семантического поиска
-- OpenSearchClient для полнотекстового поиска
-- RRF Fusion для объединения результатов
-- Cross-Encoder для реранкинга
+Координирует работу компонентов поисковой инфраструктуры:
+- MilvusClient для семантического поиска по векторным эмбеддингам
+- OpenSearchClient для полнотекстового BM25-поиска
+- RRF Fusion для объединения результатов из разных источников
+- Cross-Encoder для финального реранкинга кандидатов
 """
 
 import asyncio
@@ -33,10 +33,15 @@ logger = logging.getLogger(__name__)
 class SearchEngine:
     """Движок гибридного поиска с Parent-Document Retrieval.
 
-    Ищет по "умным листьям" (children), реранкает их,
-    и возвращает "полные ветки" (parents).
+    Реализует двухуровневую архитектуру поиска:
+    - Children (чанки): индексируются и ищутся для точного matching
+    - Parents (документы): возвращаются пользователю с полным контекстом
 
-    Композирует MilvusClient и OpenSearchClient для гибридного поиска.
+    Attributes:
+        embedder: Модель для создания векторных эмбеддингов.
+        reranker: Cross-encoder для реранкинга кандидатов.
+        milvus: Клиент семантического поиска.
+        opensearch: Клиент полнотекстового поиска.
 
     """
 
@@ -49,15 +54,18 @@ class SearchEngine:
         opensearch_host: str = OPENSEARCH_HOST,
         opensearch_port: int = OPENSEARCH_PORT,
     ) -> None:
-        """Инициализирует движок поиска.
+        """Инициализирует движок гибридного поиска.
+
+        При отсутствии переданных моделей загружает модели из конфигурации.
+        Создаёт клиенты для Milvus и OpenSearch.
 
         Args:
-            embedder: Опциональная модель эмбеддингов.
-            reranker: Опциональный реранкер.
-            milvus_host: Хост Milvus.
-            milvus_port: Порт Milvus.
-            opensearch_host: Хост OpenSearch.
-            opensearch_port: Порт OpenSearch.
+            embedder: Предзагруженная модель эмбеддингов (опционально).
+            reranker: Предзагруженный cross-encoder (опционально).
+            milvus_host: Хост сервера Milvus.
+            milvus_port: Порт сервера Milvus.
+            opensearch_host: Хост сервера OpenSearch.
+            opensearch_port: Порт сервера OpenSearch.
 
         """
         logger.info("Инициализация SearchEngine...")
@@ -96,7 +104,16 @@ class SearchEngine:
         query: str,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Семантический поиск по children через Milvus."""
+        """Выполняет семантический поиск по children-чанкам через Milvus.
+
+        Args:
+            query: Поисковый запрос.
+            filters: Дополнительные фильтры поиска.
+
+        Returns:
+            Список найденных документов с scores.
+
+        """
         return self.milvus.search(query, filters)
 
     def search_opensearch(
@@ -104,11 +121,28 @@ class SearchEngine:
         query: str,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Полнотекстовый поиск по children через OpenSearch."""
+        """Выполняет полнотекстовый BM25-поиск через OpenSearch.
+
+        Args:
+            query: Поисковый запрос.
+            filters: Дополнительные фильтры поиска.
+
+        Returns:
+            Список найденных документов с BM25 scores.
+
+        """
         return self.opensearch.search(query, filters)
 
     def fetch_parents(self, parent_ids: list[str]) -> dict[str, dict[str, Any]]:
-        """Получает parent-документы из OpenSearch DocStore."""
+        """Получает parent-документы по идентификаторам.
+
+        Args:
+            parent_ids: Список идентификаторов parent-документов.
+
+        Returns:
+            Словарь {parent_id: document_data}.
+
+        """
         return self.opensearch.fetch_parents(parent_ids)
 
     async def retrieve_candidates(
@@ -117,20 +151,19 @@ class SearchEngine:
         filters: dict[str, Any] | None = None,
         top_k: int = 20,
     ) -> dict[str, dict[str, Any]]:
-        """Получает кандидатов через гибридный поиск БЕЗ реранкинга.
+        """Получает кандидатов через гибридный поиск без реранкинга.
 
-        Выполняет:
-        1. Параллельный поиск в Milvus и OpenSearch
-        2. RRF-слияние результатов
-        3. Получение parent-документов
+        Выполняет параллельный поиск в Milvus и OpenSearch,
+        объединяет результаты через RRF Fusion и загружает
+        parent-документы для топ-кандидатов.
 
         Args:
             query: Поисковый запрос.
-            filters: Опциональные фильтры.
-            top_k: Количество топ-кандидатов.
+            filters: Дополнительные фильтры (service, tags и т.д.).
+            top_k: Количество лучших кандидатов для возврата.
 
         Returns:
-            Словарь {parent_id: CandidateDoc}.
+            Словарь кандидатов {parent_id: CandidateDoc}.
 
         """
         tasks = [
@@ -159,6 +192,7 @@ class SearchEngine:
                     "source": parents[pid]["source_file"],
                     "path": parents[pid]["header_path"],
                     "service": parents[pid]["service"],
+                    "mentions": parents[pid].get("mentions", {}),
                     "rrf_score": fused_scores[pid],
                     "best_chunk_content": best_chunk_content[pid],
                 }
@@ -171,17 +205,20 @@ class SearchEngine:
         candidates: dict[str, dict[str, Any]],
         top_k: int = FINAL_TOP_K,
         dedupe_sources: bool = False,
+        query_entities: dict[str, list[str]] | None = None,
     ) -> list[dict[str, Any]]:
-        """Реранкает кандидатов с помощью Cross-Encoder.
+        """Реранкает кандидатов с помощью Cross-Encoder модели.
 
-        Применяет RERANK_MAX_CHARS для ограничения длины chunk.
-        При dedupe_sources=True оставляет только лучший чанк с каждого source.
+        Применяет ограничение RERANK_MAX_CHARS на длину текста чанка.
+        Поддерживает entity-boost для документов с совпадающими сущностями
+        и опциональную дедупликацию по источникам.
 
         Args:
-            query: Запрос для реранкинга.
-            candidates: Словарь кандидатов от retrieve_candidates.
-            top_k: Количество лучших результатов.
-            dedupe_sources: Дедупликация по source (один файл = один результат).
+            query: Запрос для вычисления релевантности.
+            candidates: Словарь кандидатов от retrieve_candidates().
+            top_k: Количество лучших результатов для возврата.
+            dedupe_sources: Оставить только лучший чанк с каждого источника.
+            query_entities: Сущности из запроса для score boost.
 
         Returns:
             Отсортированный список документов с reranker_score.
@@ -203,10 +240,16 @@ class SearchEngine:
         results = []
         for pid, score in zip(pids, rerank_scores, strict=True):
             doc = candidates[pid]
+            final_score = float(score)
+
+            if query_entities:
+                entity_boost = self._calculate_entity_boost(doc, query_entities)
+                final_score = final_score * (1 + entity_boost)
+
             results.append(
                 {
                     **doc,
-                    "score": float(score),
+                    "score": final_score,
                     "reranker_score": float(score),
                 }
             )
@@ -228,18 +271,67 @@ class SearchEngine:
 
         return results[:top_k]
 
+    def _calculate_entity_boost(
+        self,
+        doc: dict[str, Any],
+        query_entities: dict[str, list[str]],
+    ) -> float:
+        """Вычисляет boost-коэффициент на основе совпадения entities.
+
+        Сравнивает keywords из Query Expansion со всеми mentions
+        в метаданных документа для повышения релевантности.
+
+        Args:
+            doc: Документ с полем mentions в метаданных.
+            query_entities: Keywords из Query Expansion variations[0].
+
+        Returns:
+            Boost factor в диапазоне 0.0-0.3 (+0% до +30% к score).
+
+        """
+        mentions = doc.get("mentions", {})
+        if not mentions and "metadata" in doc:
+            mentions = doc.get("metadata", {}).get("mentions", {})
+
+        if not mentions:
+            return 0.0
+
+        all_mention_values: set[str] = set()
+        for values in mentions.values():
+            if isinstance(values, list):
+                all_mention_values.update(str(v).lower() for v in values)
+            elif values:
+                all_mention_values.add(str(values).lower())
+
+        if not all_mention_values:
+            return 0.0
+
+        boost = 0.0
+        boost_per_match = 0.05
+        max_boost = 0.30
+
+        keywords = query_entities.get("keyword", [])
+        for kw in keywords:
+            kw_lower = kw.lower()
+            for mention in all_mention_values:
+                if kw_lower == mention or kw_lower in mention or mention in kw_lower:
+                    boost += boost_per_match
+                    break
+
+        return min(boost, max_boost)
+
     async def hybrid_search(
         self,
         query: str,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Гибридный поиск с Parent-Document Retrieval и RRF.
+        """Выполняет полный пайплайн гибридного поиска.
 
-        Полный пайплайн: retrieve → RRF → fetch parents → rerank.
+        Объединяет все этапы: retrieve → RRF → fetch parents → rerank.
 
         Args:
             query: Поисковый запрос.
-            filters: Опциональные фильтры.
+            filters: Дополнительные фильтры поиска.
 
         Returns:
             Отранжированный список parent-документов.
@@ -254,17 +346,19 @@ class SearchEngine:
         opensearch_hits: list[dict[str, Any]],
         k: int = RRF_K,
     ) -> tuple[dict[str, float], dict[str, str]]:
-        """Выполняет RRF (Reciprocal Rank Fusion) для объединения результатов.
+        """Объединяет результаты поиска через Reciprocal Rank Fusion.
 
-        Выбирает chunk с лучшим score для каждого parent.
+        RRF комбинирует ранжирования из разных источников, присваивая
+        каждому документу score = sum(1 / (k + rank)) по всем источникам.
+        Также выбирает лучший chunk для каждого parent-документа.
 
         Args:
-            milvus_hits: Результаты из Milvus.
-            opensearch_hits: Результаты из OpenSearch.
-            k: Константа RRF (по умолчанию RRF_K=60).
+            milvus_hits: Результаты семантического поиска из Milvus.
+            opensearch_hits: Результаты полнотекстового поиска из OpenSearch.
+            k: Константа сглаживания RRF (по умолчанию 60).
 
         Returns:
-            Кортеж (fused_scores, best_chunk_content).
+            Кортеж (fused_scores, best_chunk_content) для каждого parent_id.
 
         """
         fused_scores: dict[str, float] = {}

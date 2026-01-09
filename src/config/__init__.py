@@ -58,6 +58,11 @@ LLM_TIMEOUT = settings.llm_timeout
 MAX_CONTEXT_CHARS = settings.max_context_chars
 RAG_MODE = settings.rag_mode
 
+OPENROUTER_API_KEY = settings.openrouter_api_key
+OPENROUTER_BASE_URL = settings.openrouter_base_url
+NER_FALLBACK_MODEL = settings.ner_fallback_model
+QUERY_EXPANSION_MODEL = settings.query_expansion_model
+
 __all__ = [
     "settings",
     "PROJECT_ROOT",
@@ -88,4 +93,7 @@ __all__ = [
     "MIN_RELEVANCE_SCORE",
     "LLM_CONCURRENCY_LIMIT",
     "RAG_MODE",
+    "OPENROUTER_API_KEY",
+    "OPENROUTER_BASE_URL",
+    "NER_FALLBACK_MODEL",
 ]

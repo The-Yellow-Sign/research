@@ -42,6 +42,9 @@ from src.config import (
     LLM_MODEL,
     LLM_TIMEOUT,
     MAX_CONTEXT_CHARS,
+    OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL,
+    QUERY_EXPANSION_MODEL,
 )
 from src.config.metrics import get_metrics_collector
 from src.config.telemetry import traced_operation
@@ -86,6 +89,14 @@ class LLMClient:
         self._expand_cache: OrderedDict[str, QueryExpansion] = OrderedDict()
         self._cache_max_size = 100
 
+        self._openrouter_client: AsyncOpenAI | None = None
+        if OPENROUTER_API_KEY:
+            self._openrouter_client = AsyncOpenAI(
+                api_key=OPENROUTER_API_KEY,
+                base_url=OPENROUTER_BASE_URL,
+            )
+            logger.info("OpenRouter client initialized for Query Expansion")
+
     async def expand_query(
         self,
         query: str,
@@ -124,10 +135,15 @@ class LLMClient:
 
         t0 = time.perf_counter()
         metrics = get_metrics_collector()
+
+        use_openrouter = self._openrouter_client is not None
+        client = self._openrouter_client if use_openrouter else self.client
+        model = QUERY_EXPANSION_MODEL if use_openrouter else LLM_MODEL
+
         try:
-            with traced_operation("llm.expand_query", {"model": LLM_MODEL}):
-                response = await self.client.chat.completions.parse(
-                    model=LLM_MODEL,
+            with traced_operation("llm.expand_query", {"model": model}):
+                response = await client.chat.completions.parse(
+                    model=model,
                     messages=[
                         {"role": "system", "content": SYSTEM_QUERY_EXPANSION},
                         {

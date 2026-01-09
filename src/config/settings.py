@@ -70,7 +70,7 @@ class Settings(BaseSettings):
         description="API ключ LLM (для локальных моделей может быть любым)",
     )
 
-    chunk_size: int = Field(default=700, description="Размер чанка")
+    chunk_size: int = Field(default=600, description="Размер чанка")
     min_chunk_chars: int = Field(default=50, description="Минимум символов в чанке")
     code_block_pattern: str = Field(
         default=r"```[^\n]*\n(.*?)```",
@@ -129,11 +129,23 @@ class Settings(BaseSettings):
     )
     eval_rag_model: str = Field(
         default="qwen/qwen3-32b",
-        description="Модель для RAG в evaluation",
+        description="Модель для генерации ответов в evaluation",
+    )
+    eval_reranking_model: str = Field(
+        default="qwen/qwen3-8b",
+        description="Модель для LLM reranking в evaluation",
     )
     eval_judge_model: str = Field(
         default="openai/gpt-4o-mini",
         description="Модель-судья для evaluation",
+    )
+    ner_fallback_model: str = Field(
+        default="qwen/qwen3-4b:free",
+        description="Модель для NER fallback через OpenRouter (когда GLiNER не справился)",
+    )
+    query_expansion_model: str = Field(
+        default="qwen/qwen3-8b",
+        description="Модель для Query Expansion через OpenRouter",
     )
 
     ragas_timeout: int = Field(default=600, description="Таймаут RAGAS evaluation (секунды)")

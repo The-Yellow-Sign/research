@@ -1,9 +1,7 @@
-"""Use Case: Анализ документов на релевантность.
+"""Use Case: Анализатор документов для RAG-пайплайна.
 
-Отвечает за:
-- LLM-реранкинг документов (по образцу RAG-Challenge-2)
-- Взвешенное среднее: 0.3×vector + 0.7×llm
-- Без жёсткого порога — только сортировка и топ-N
+Реализует LLM-реранкинг документов.
+Использует взвешенное среднее vector и LLM scores для финального ранжирования.
 """
 
 import logging
@@ -27,7 +25,15 @@ LLM_FINAL_TOP_K = 5
 def normalize_vector_score(score: float) -> float:
     """Нормализует vector/reranker score в диапазон 0-1.
 
-    Использует sigmoid для плавного масштабирования.
+    Применяет sigmoid-функцию для плавного масштабирования
+    произвольных значений score в вероятностный диапазон.
+
+    Args:
+        score: Исходное значение score (может быть отрицательным).
+
+    Returns:
+        Нормализованное значение в диапазоне [0, 1].
+
     """
     if isinstance(score, (int, float)):
         return 1 / (1 + math.exp(-float(score)))
@@ -35,19 +41,23 @@ def normalize_vector_score(score: float) -> float:
 
 
 class DocumentAnalyzer:
-    """Анализатор документов для RAG-пайплайна.
+    """Анализатор документов с LLM-реранкингом.
 
-    Использует LLM-реранкинг с взвешенным средним (по образцу RAG-Challenge-2):
-    - final_score = 0.3×vector_score + 0.7×llm_score
-    - Без жёсткого порога отсечения
-    - Сортировка по score, топ-N
+    Комбинирует vector score от BGE Cross-Encoder с LLM-оценкой
+    релевантности для более точного ранжирования документов.
+
+    Формула: final_score = 0.3 × vector_score + 0.7 × llm_score
+
+    Attributes:
+        llm: LLM-клиент для оценки релевантности.
+
     """
 
     def __init__(self, llm: LLMPort) -> None:
-        """Инициализация анализатора.
+        """Инициализирует анализатор документов.
 
         Args:
-            llm: LLM-клиент, реализующий LLMPort.
+            llm: LLM-клиент, реализующий интерфейс LLMPort.
 
         """
         self.llm = llm
@@ -57,17 +67,18 @@ class DocumentAnalyzer:
         docs: list[dict[str, Any]],
         query: str,
     ) -> list[dict[str, Any]]:
-        """Реранкинг документов через LLM с взвешенным средним.
+        """Выполняет LLM-реранкинг документов.
 
-        Использует batch reranking для эффективности (3 docs/request).
-        Комбинирует vector score и LLM score.
+        Применяет batch reranking через LLM для эффективной оценки.
+        Комбинирует vector и LLM scores с весами VECTOR_WEIGHT/LLM_WEIGHT.
+        Фильтрует документы с llm_score < 0.2.
 
         Args:
-            docs: Список документов из поиска.
-            query: Запрос для оценки релевантности.
+            docs: Список документов после BGE-реранкинга.
+            query: Запрос пользователя для оценки релевантности.
 
         Returns:
-            Отсортированные документы (топ FINAL_TOP_K).
+            Отсортированный список топ-документов с финальными scores.
 
         """
         if not docs:
@@ -75,7 +86,7 @@ class DocumentAnalyzer:
 
         if RAG_MODE == "basic":
             logger.info("Basic mode: skipping LLM reranking")
-            return docs[:LLM_FINAL_TOP_K]
+            return docs[:FINAL_TOP_K]
 
         docs_to_analyze = docs[: FINAL_TOP_K * 2]
         logger.info("LLM Reranking %d документов...", len(docs_to_analyze))
@@ -117,7 +128,8 @@ class DocumentAnalyzer:
             reverse=True,
         )
 
-        result = analyzed_docs[:LLM_FINAL_TOP_K]
+        filtered_docs = [d for d in analyzed_docs if d.get("llm_score", 0) >= 0.2]
+        result = filtered_docs[:LLM_FINAL_TOP_K]
 
         logger.info(
             "Reranking завершён: топ %d из %d (scores: %.2f - %.2f)",
@@ -147,14 +159,3 @@ class DocumentAnalyzer:
         )
 
         return result
-
-    async def analyze_single(
-        self,
-        doc: dict[str, Any],
-        query: str,
-        doc_index: int,
-    ) -> dict[str, Any] | None:
-        """Use analyze_batch instead of this method."""
-        logger.warning("analyze_single deprecated, use analyze_batch")
-        results = await self.analyze_batch([doc], query)
-        return results[0] if results else None

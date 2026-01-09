@@ -1,9 +1,10 @@
 """Модуль разбиения Markdown-документов на чанки.
 
-Реализует Parent-Document Retrieval паттерн:
-- Разбиение по markdown-заголовкам (parent = секция)
-- Извлечение блоков кода и таблиц через AST-парсинг (Marko)
+Реализует паттерн Parent-Document Retrieval:
+- Разбиение по markdown-заголовкам (parent = секция документа)
+- Извлечение блоков кода и таблиц через AST-парсинг (Marko GFM)
 - Создание children-чанков с обогащённым контекстом для векторного поиска
+- Опциональное LLM-обогащение метаданных при индексации
 
 Использует доменные сервисы из src.domain.services.chunking.
 """
@@ -21,13 +22,15 @@ from langchain_text_splitters import (
 from src.config import CHUNK_OVERLAP, CHUNK_SIZE, MIN_CHUNK_CHARS, SOURCE_DIR
 from src.domain.models.document import ExtractedBlock, generate_parent_id
 from src.domain.services.chunking import (
-    KNOWN_SERVICES,
-    SERVICE_ALIASES,
     build_header_path,
     build_vector_text,
     infer_service_from_path,
     parse_frontmatter,
     process_markdown_ast,
+)
+from src.domain.services.metadata_extractor import (
+    extract_metadata,
+    extract_metadata_with_llm_fallback,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,13 +59,21 @@ __all__ = [
     "build_vector_text",
     "process_files",
     "process_specific_files",
-    "KNOWN_SERVICES",
-    "SERVICE_ALIASES",
+    "process_files_async",
+    "process_specific_files_async",
 ]
 
 
 def process_files() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Обрабатывает все markdown-файлы в исходной директории."""
+    """Обрабатывает все markdown-файлы в директории SOURCE_DIR.
+
+    Синхронная версия без LLM-обогащения метаданных.
+    Использует GLiNER + regex для извлечения entities.
+
+    Returns:
+        Кортеж (parents, children) со списками документов.
+
+    """
     if not SOURCE_DIR.is_dir():
         logger.warning("Исходная директория не найдена: %s", SOURCE_DIR)
         return [], []
@@ -84,7 +95,15 @@ def process_files() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
 def process_specific_files(
     filepaths: list[Path],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Обрабатывает указанные markdown-файлы."""
+    """Обрабатывает указанный список markdown-файлов.
+
+    Args:
+        filepaths: Список путей к файлам для обработки.
+
+    Returns:
+        Кортеж (parents, children) со списками документов.
+
+    """
     all_parents: list[dict[str, Any]] = []
     all_children: list[dict[str, Any]] = []
 
@@ -101,7 +120,18 @@ def process_specific_files(
 
 
 def _process_single_file(filepath: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Обрабатывает один markdown-файл."""
+    """Обрабатывает один markdown-файл.
+
+    Извлекает frontmatter, определяет сервис, разбивает по заголовкам
+    и создаёт parent/children документы.
+
+    Args:
+        filepath: Путь к markdown-файлу.
+
+    Returns:
+        Кортеж (parents, children) для данного файла.
+
+    """
     try:
         filename = str(filepath.relative_to(SOURCE_DIR))
     except ValueError:
@@ -143,13 +173,28 @@ def _process_section(
     filename: str,
     service: str,
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
-    """Обрабатывает одну markdown-секцию."""
+    """Обрабатывает одну markdown-секцию (уровень parent).
+
+    Создаёт parent-документ с полным текстом секции и metadata,
+    затем разбивает на children-чанки для индексации.
+
+    Args:
+        split: Document объект с текстом секции и метаданными заголовков.
+        filename: Имя исходного файла.
+        service: Определённое название сервиса.
+
+    Returns:
+        Кортеж (parent_doc, list_of_children).
+
+    """
     section_text = split.page_content.strip()
     if not section_text:
         return None, []
 
     header_path = build_header_path({**split.metadata, "source_file": filename})
     parent_id = generate_parent_id(filename, header_path)
+
+    mentions = extract_metadata(section_text)
 
     parent = {
         "id": parent_id,
@@ -159,6 +204,7 @@ def _process_section(
             "service": service,
             "header_path": header_path,
             **split.metadata,
+            "mentions": mentions,
         },
     }
 
@@ -182,7 +228,23 @@ def _create_children(
     header_path: str,
     metadata: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Создаёт child-документы из секции."""
+    """Создаёт children-документы из текста секции.
+
+    Извлекает блоки кода и таблицы через AST-парсинг,
+    затем разбивает оставшийся текст на чанки заданного размера.
+
+    Args:
+        section_text: Полный текст секции.
+        parent_id: Идентификатор parent-документа.
+        filename: Имя исходного файла.
+        service: Название сервиса.
+        header_path: Breadcrumb-путь по заголовкам.
+        metadata: Дополнительные метаданные из заголовков.
+
+    Returns:
+        Список children-документов для индексации.
+
+    """
     children: list[dict[str, Any]] = []
 
     text_with_placeholders, blocks = process_markdown_ast(section_text)
@@ -250,3 +312,158 @@ def _create_children(
         )
 
     return children
+
+
+async def process_files_async() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Обрабатывает все markdown-файлы с LLM-обогащением метаданных.
+
+    Асинхронная версия с вызовом LLM для улучшения качества
+    извлечения entities при слабых результатах GLiNER/regex.
+
+    Returns:
+        Кортеж (parents, children) со списками документов.
+
+    """
+    if not SOURCE_DIR.is_dir():
+        logger.warning("Исходная директория не найдена: %s", SOURCE_DIR)
+        return [], []
+
+    files = list(SOURCE_DIR.glob("**/*.md"))
+    logger.info("Найдено %d markdown-файлов (async with LLM)", len(files))
+
+    all_parents: list[dict[str, Any]] = []
+    all_children: list[dict[str, Any]] = []
+
+    for filepath in files:
+        parents, children = await _process_single_file_async(filepath)
+        all_parents.extend(parents)
+        all_children.extend(children)
+
+    return all_parents, all_children
+
+
+async def process_specific_files_async(
+    filepaths: list[Path],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Обрабатывает указанные файлы с LLM-обогащением метаданных.
+
+    Args:
+        filepaths: Список путей к файлам для обработки.
+
+    Returns:
+        Кортеж (parents, children) со списками документов.
+
+    """
+    all_parents: list[dict[str, Any]] = []
+    all_children: list[dict[str, Any]] = []
+
+    for filepath in filepaths:
+        if not filepath.exists():
+            logger.warning("Файл не найден: %s", filepath)
+            continue
+
+        parents, children = await _process_single_file_async(filepath)
+        all_parents.extend(parents)
+        all_children.extend(children)
+
+    return all_parents, all_children
+
+
+async def _process_single_file_async(
+    filepath: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Обрабатывает один файл с LLM-обогащением метаданных.
+
+    Args:
+        filepath: Путь к markdown-файлу.
+
+    Returns:
+        Кортеж (parents, children) для данного файла.
+
+    """
+    try:
+        filename = str(filepath.relative_to(SOURCE_DIR))
+    except ValueError:
+        filename = filepath.name
+
+    parents: list[dict[str, Any]] = []
+    children: list[dict[str, Any]] = []
+
+    try:
+        content = filepath.read_text(encoding="utf-8")
+    except OSError as e:
+        logger.error("Ошибка чтения файла %s: %s", filename, e)
+        return [], []
+
+    file_meta, content = parse_frontmatter(content)
+
+    service = file_meta.get("service")
+    if not service:
+        service = infer_service_from_path(filepath)
+    if not service:
+        service = "general"
+
+    splits = _markdown_splitter.split_text(content)
+
+    if not splits and content.strip():
+        splits = [Document(page_content=content, metadata={})]
+
+    for split in splits:
+        parent, section_children = await _process_section_async(split, filename, service)
+        if parent:
+            parents.append(parent)
+        children.extend(section_children)
+
+    return parents, children
+
+
+async def _process_section_async(
+    split: Document,
+    filename: str,
+    service: str,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Обрабатывает секцию с LLM-обогащённым извлечением entities.
+
+    При слабых результатах GLiNER/regex автоматически
+    вызывает LLM для качественного извлечения метаданных.
+
+    Args:
+        split: Document объект с текстом секции.
+        filename: Имя исходного файла.
+        service: Определённое название сервиса.
+
+    Returns:
+        Кортеж (parent_doc, list_of_children).
+
+    """
+    section_text = split.page_content.strip()
+    if not section_text:
+        return None, []
+
+    header_path = build_header_path({**split.metadata, "source_file": filename})
+    parent_id = generate_parent_id(filename, header_path)
+
+    mentions = await extract_metadata_with_llm_fallback(section_text)
+
+    parent = {
+        "id": parent_id,
+        "full_text": section_text,
+        "metadata": {
+            "source_file": filename,
+            "service": service,
+            "header_path": header_path,
+            **split.metadata,
+            "mentions": mentions,
+        },
+    }
+
+    children = _create_children(
+        section_text=section_text,
+        parent_id=parent_id,
+        filename=filename,
+        service=service,
+        header_path=header_path,
+        metadata=split.metadata,
+    )
+
+    return parent, children

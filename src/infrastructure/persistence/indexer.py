@@ -45,13 +45,19 @@ def ensure_opensearch_parent_index(client: OpenSearch) -> bool:
     index_body = {
         "settings": {"number_of_shards": 1, "number_of_replicas": 0},
         "mappings": {
+            "dynamic": "strict",
+            "date_detection": False,
             "properties": {
                 "id": {"type": "keyword"},
                 "full_text": {"type": "text", "index": False},
                 "source_file": {"type": "keyword"},
                 "service": {"type": "keyword"},
                 "header_path": {"type": "keyword"},
-            }
+                "mentions": {
+                    "type": "object",
+                    "dynamic": True,
+                },
+            },
         },
     }
 
@@ -219,6 +225,7 @@ def index_parents_to_opensearch(
                 "source_file": parent["metadata"].get("source_file"),
                 "service": parent["metadata"].get("service"),
                 "header_path": parent["metadata"].get("header_path"),
+                "mentions": parent["metadata"].get("mentions", {}),
             },
         }
         for parent in parents
