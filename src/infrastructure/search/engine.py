@@ -1,7 +1,7 @@
 """Движок гибридного поиска с Parent-Document Retrieval.
 
 Координирует работу компонентов поисковой инфраструктуры:
-- MilvusClient для семантического поиска по векторным эмбеддингам
+- MilvusClient для семантического поиска по эмбеддингам
 - OpenSearchClient для полнотекстового BM25-поиска
 - RRF Fusion для объединения результатов из разных источников
 - Cross-Encoder для финального реранкинга кандидатов
@@ -307,8 +307,8 @@ class SearchEngine:
             return 0.0
 
         boost = 0.0
-        boost_per_match = 0.05
-        max_boost = 0.30
+        boost_per_match = 0.03
+        max_boost = 0.15
 
         keywords = query_entities.get("keyword", [])
         for kw in keywords:
