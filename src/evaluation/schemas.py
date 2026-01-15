@@ -11,6 +11,16 @@ class RetrievedContext(BaseModel):
     score: float = Field(..., description="Скор релевантности")
 
 
+class Footnote(BaseModel):
+    """Сноска на источник."""
+
+    doc_id: int
+    service: str
+    title: str
+    source_file: str
+    quote: str
+
+
 class RAGOutput(BaseModel):
     """Выход RAG-системы для одного вопроса."""
 
@@ -19,6 +29,7 @@ class RAGOutput(BaseModel):
     retrieved_contexts: list[RetrievedContext] = Field(
         default_factory=list, description="Найденные документы"
     )
+    footnotes: list[Footnote] = Field(default_factory=list, description="Сноски для UI")
     latency_sec: float = Field(default=0.0, description="Общее время pipeline")
     answer_type: str = Field(default="final_answer", description="Тип ответа")
     timings: dict[str, float] | None = Field(

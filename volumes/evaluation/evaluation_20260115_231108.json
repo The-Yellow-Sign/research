@@ -1,0 +1,162 @@
+{
+  "metadata": {
+    "timestamp": "2026-01-15T23:11:08.074129",
+    "rag_model": "qwen/qwen3-32b",
+    "judge_model": "openai/gpt-4o-mini",
+    "evaluator": "RAGAS"
+  },
+  "summary": {
+    "total_questions": 1,
+    "successful": 1,
+    "failed": 0,
+    "avg_context_recall": 1.0,
+    "avg_context_precision": 0.999999999975,
+    "avg_faithfulness": 1.0,
+    "avg_answer_relevancy": 0.0,
+    "avg_rag_latency_sec": 21.286599791026674,
+    "avg_query_expansion_sec": 13.58707912499085,
+    "avg_retrieve_sec": 2.628722374967765,
+    "avg_rerank_sec": 2.9171183750149794,
+    "avg_llm_analysis_sec": 0.0006379159749485552,
+    "avg_llm_generation_sec": 2.1425070830155164
+  },
+  "by_category": {
+    "troubleshooting": {
+      "total_questions": 1,
+      "successful": 1,
+      "failed": 0,
+      "avg_context_recall": 1.0,
+      "avg_context_precision": 0.999999999975,
+      "avg_faithfulness": 1.0,
+      "avg_answer_relevancy": 0.0,
+      "avg_rag_latency_sec": 21.286599791026674,
+      "avg_query_expansion_sec": 13.58707912499085,
+      "avg_retrieve_sec": 2.628722374967765,
+      "avg_rerank_sec": 2.9171183750149794,
+      "avg_llm_analysis_sec": 0.0006379159749485552,
+      "avg_llm_generation_sec": 2.1425070830155164
+    }
+  },
+  "by_difficulty": {
+    "medium": {
+      "total_questions": 1,
+      "successful": 1,
+      "failed": 0,
+      "avg_context_recall": 1.0,
+      "avg_context_precision": 0.999999999975,
+      "avg_faithfulness": 1.0,
+      "avg_answer_relevancy": 0.0,
+      "avg_rag_latency_sec": 21.286599791026674,
+      "avg_query_expansion_sec": 13.58707912499085,
+      "avg_retrieve_sec": 2.628722374967765,
+      "avg_rerank_sec": 2.9171183750149794,
+      "avg_llm_analysis_sec": 0.0006379159749485552,
+      "avg_llm_generation_sec": 2.1425070830155164
+    }
+  },
+  "results": [
+    {
+      "id": "q_001",
+      "question": "Как исправить ошибку \"deadlock detected\" (код 40P01) в PostgreSQL, если она возникает при обновлении одних и тех же строк в разных транзакциях?",
+      "expected_answer": "Если pg_terminate_backend(blocking_pid) не помогает, следует использовать более жесткий метод pg_cancel_backend(blocking_pid). Кроме того, для долгосрочного решения рекомендуется: 1. Проанализировать код приложения на предмет неоптимального порядка UPDATE/INSERT. 2. Переписать транзакции с соблюдением строгого порядка блокировок (например, сортировать по ID перед обновлением). 3. Настроить PostgreSQL (deadlock_timeout, log_lock_waits) для лучшего детектирования.",
+      "source_file": "01-postgresql-deadlock.md",
+      "difficulty": "medium",
+      "category": "troubleshooting",
+      "rag_output": {
+        "generated_answer": "**Диагноз:**  \nОшибка `deadlock detected` (код 40P01) возникает, когда две и более транзакции блокируют ресурсы в противоположном порядке, создавая циклическую зависимость. В логах указаны примеры, где процессы ждут `ShareLock` или `ExclusiveLock` на разных строках таблиц `user_accounts` и `orders` [doc:1].  \n\n**Решение:**  \n1. **Немедленное устранение блокировки:**  \n   Завершите блокирующий процесс через `pg_terminate_backend` или `pg_cancel_backend`:  \n   ```bash\n   SELECT pg_terminate_backend(blocking_pid);  # [doc:2]\n   ```  \n\n2. **Анализ текущих блокировок:**  \n   Проверьте активные блокировки и долгие транзакции:  \n   ```bash\n   SELECT * FROM pg_locks WHERE NOT granted;  # [doc:4]\n   SELECT pid, age(clock_timestamp(), xact_start) FROM pg_stat_activity WHERE state != 'idle';  # [doc:4]\n   ```  \n\n3. **Рефакторинг транзакций:**  \n   Обеспечьте строгий порядок обновления строк (например, по возрастанию `id`):  \n   ```sql\n   -- Хорошо: обновление в одном порядке\n   BEGIN;\n   UPDATE accounts SET balance = balance + 100 WHERE id = 1;\n   UPDATE accounts SET balance = balance - 100 WHERE id = 2;\n   COMMIT;  # [doc:2]\n   ```  \n   Используйте `SELECT ... FOR UPDATE` с сортировкой для явного контроля блокировок:  \n   ```sql\n   BEGIN;\n   SELECT * FROM accounts WHERE id IN (1, 2) ORDER BY id FOR UPDATE;\n   -- Выполняйте обновления\n   COMMIT;  # [doc:2]\n   ```  \n\n4. **Настройка PostgreSQL:**  \n   Снизьте `deadlock_timeout` и включите логирование:  \n   ```bash\n   deadlock_timeout = 1s\n   log_lock_waits = on\n   ```  \n   Перезагрузите конфигурацию:  \n   ```bash\n   SELECT pg_reload_conf();  # [doc:2]\n   ```  \n\n5. **Добавьте retry-логику в приложение:**  \n   Пример на Python:  \n   ```python\n   def execute_with_retry(query, max_retries=3):\n       for attempt in range(max_retries):\n           try:\n               # Выполнение запроса\n               return True\n           except psycopg2.extensions.TransactionRollbackError as e:\n               if \"deadlock detected\" in str(e):\n                   time.sleep(2 ** attempt)  # exponential backoff\n                   continue\n                   raise\n   ```  \n\n**Важные замечания:**  \n- Дедлоки часто вызваны разным порядком обновления строк в разных транзакциях [doc:2].  \n- Долгие транзакции и отсутствие индексы на `WHERE`-условиях увеличивают риск [doc:2].  \n- В мониторинге настройте алерты на `pg_stat_database.deadlocks` [doc:2].",
+        "rewritten_query": "PostgreSQL ошибка deadlock detected код 40P01 обновление строк в разных транзакциях",
+        "retrieved_contexts": [
+          {
+            "source": "01-postgresql-deadlock.md",
+            "content": "```text\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db ERROR:  deadlock detected\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db DETAIL:  Process 47823 waits for ShareLock on transaction 89234512; blocked by process 47891.\nProcess 47891 waits for ShareLock on transaction 89234487; blocked by process 47823.\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db HINT:  See server log for query details.\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db CONTEXT:  while updating tuple (0,127) in relation \"user_accounts\"\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db STATEMENT:  UPDATE user_accounts SET balance = balance - 100.00 WHERE user_id = 'USR-9284719' AND account_status = 'active'\n```  \n```text\n2025-11-28 14:35:42.129 UTC [48012] payment_worker@prod_db ERROR:  40P01: deadlock detected\n2025-11-28 14:35:42.129 UTC [48012] payment_worker@prod_db LOCATION:  DeadLockReport, deadlock.c:1140\n2025-11-28 14:35:42.130 UTC [48012] payment_worker@prod_db STATEMENT:\nBEGIN;\nUPDATE orders SET status = 'processing', updated_at = NOW() WHERE order_id = 'ORD-88247123';\nINSERT INTO audit_log (order_id, action, timestamp) VALUES ('ORD-88247123', 'status_change', NOW());\nCOMMIT;\nFATAL: terminating connection due to administrator command\nserver closed the connection unexpectedly\nThis probably means the server terminated abnormally\nbefore or while processing the request.\n```  \n```text\n[2025-11-28T14:38:15.834Z] WARN  [pool-7-thread-42] c.m.s.DatabaseTransactionManager - Transaction rollback initiated\norg.postgresql.util.PSQLException: ERROR: deadlock detected\nDetail: Process 49127 waits for ExclusiveLock on tuple (12,94) of relation 16401 of database 16384; blocked by process 49156.\nProcess 49156 waits for ExclusiveLock on tuple (12,88) of relation 16401 of database 16384; blocked by process 49127.\nat org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2553)\nat org.postgresql.core.v3.QueryExecutorImpl.processResults(",
+            "score": 0.9540936350822449
+          },
+          {
+            "source": "01-postgresql-deadlock.md",
+            "content": "**Шаг 1: Немедленное устранение блокировки (если критично)**  \n```bash\n# Найдите PID блокирующего процесса\nSELECT pg_terminate_backend(blocking_pid);\n# Замените blocking_pid на конкретный PID из диагностики\n\n# Если pg_terminate_backend не помогает, используйте более жесткий метод:\nSELECT pg_cancel_backend(blocking_pid);\n```  \n**Шаг 2: Анализ кода приложения**  \nНайдите в коде места, где происходят UPDATE/INSERT в неоптимальном порядке:  \n```bash\n# Проверьте логи приложения на наличие паттернов\ngrep -r \"UPDATE.*WHERE.*=\" app_logs/application-$(date +%Y-%m-%d).log | grep -E \"user_accounts|orders\"\n```  \nТипичные причины дедлоков:\n- Разный порядок обновления строк в разных транзакциях\n- Длинные транзакции с множественными UPDATE\n- Отсутствие индексов на WHERE условиях  \n**Шаг 3: Рефакторинг транзакций**  \nПерепишите код с соблюдением строгого порядка блокировок:  \n```sql\n-- Плохо (может вызвать deadlock):\nBEGIN;\nUPDATE accounts SET balance = balance - 100 WHERE id = 2;\nUPDATE accounts SET balance = balance + 100 WHERE id = 1;\nCOMMIT;\n\n-- Хорошо (всегда обновляем в порядке возрастания ID):\nBEGIN;\nUPDATE accounts SET balance = balance + 100 WHERE id = 1;\nUPDATE accounts SET balance = balance - 100 WHERE id = 2;\nCOMMIT;\n\n-- Или используйте FOR UPDATE с сортировкой:\nBEGIN;\nSELECT * FROM accounts WHERE id IN (1, 2) ORDER BY id FOR UPDATE;\n-- затем UPDATE\nCOMMIT;\n```  \n**Шаг 4: Настройка PostgreSQL для лучшего детектирования**  \n```bash\n# Отредактируйте postgresql.conf\nsudo nano /etc/postgresql/14/main/postgresql.conf\n\n# Добавьте/измените:\ndeadlock_timeout = 1s                    # Быстрее детектировать дедлоки\nlog_lock_waits = on                      # Логировать долгие ожидания\nlock_timeout = 10s                       # Таймаут на получение лока\nstatement_timeout = 30s                  # Общий таймаут запроса\n\n# Перезагрузите конфигурацию\nsudo systemctl reload postgresql\n# или\nSELECT pg_reload_conf();\n```  \n**Шаг 5: Мониторинг и профилактика**  \n```bash\n# Создайте алерт в P",
+            "score": 0.8887603282928467
+          },
+          {
+            "source": "01-postgresql-deadlock.md",
+            "content": "Пользователи наблюдают резкое увеличение времени отклика приложения или полное зависание транзакций. В логах появляются ошибки о взаимной блокировке (deadlock). Некоторые запросы зависают на минуты, после чего откатываются с ошибкой. В monitoring дашбордах видно резкий рост числа активных соединений и заблокированных транзакций. Веб-приложение может возвращать 504 Gateway Timeout или Internal Server Error (500).",
+            "score": 0.18724457919597626
+          },
+          {
+            "source": "01-postgresql-deadlock.md",
+            "content": "Проверьте текущие блокировки в базе данных:  \n```bash\n# Подключитесь к PostgreSQL\npsql -U postgres -d prod_db\n\n# Проверьте активные блокировки\nSELECT\nblocked_locks.pid AS blocked_pid,\nblocked_activity.usename AS blocked_user,\nblocking_locks.pid AS blocking_pid,\nblocking_activity.usename AS blocking_user,\nblocked_activity.query AS blocked_statement,\nblocking_activity.query AS blocking_statement,\nblocked_activity.application_name AS blocked_application,\nblocking_activity.application_name AS blocking_application\nFROM pg_catalog.pg_locks blocked_locks\nJOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid\nJOIN pg_catalog.pg_locks blocking_locks\nON blocking_locks.locktype = blocked_locks.locktype\nAND blocking_locks.database IS NOT DISTINCT FROM blocked_locks.database\nAND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation\nAND blocking_locks.page IS NOT DISTINCT FROM blocked_locks.page\nAND blocking_locks.tuple IS NOT DISTINCT FROM blocked_locks.tuple\nAND blocking_locks.virtualxid IS NOT DISTINCT FROM blocked_locks.virtualxid\nAND blocking_locks.transactionid IS NOT DISTINCT FROM blocked_locks.transactionid\nAND blocking_locks.classid IS NOT DISTINCT FROM blocked_locks.classid\nAND blocking_locks.objid IS NOT DISTINCT FROM blocked_locks.objid\nAND blocking_locks.objsubid IS NOT DISTINCT FROM blocked_locks.objsubid\nAND blocking_locks.pid != blocked_locks.pid\nJOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid\nWHERE NOT blocked_locks.granted;\n```  \n```bash\n# Проверьте статистику дедлоков\nSELECT datname, deadlocks\nFROM pg_stat_database\nWHERE datname = 'prod_db';\n\n# Посмотрите долгие транзакции\nSELECT pid, age(clock_timestamp(), xact_start), usename, state, query\nFROM pg_stat_activity\nWHERE state != 'idle'\nORDER BY age DESC\nLIMIT 10;\n```  \n```bash\n# Включите логирование дедлоков для детального анализа\n# В postgresql.conf\ngrep -E \"deadlock_timeout|log_lock_waits\" /etc/postgresql/14/m",
+            "score": 0.16562066972255707
+          },
+          {
+            "source": "db-migration-rds.md",
+            "content": "После завершения Full Load необходимо сравнить количество строк в таблицах.  \n| Таблица | MySQL (Count) | PostgreSQL (Count) | Статус |\n| :--- | :--- | :--- | :--- |\n| `users` | 1,240,551 | 1,240,551 | OK |\n| `orders` | 8,912,440 | 8,912,440 | OK |",
+            "score": 0.04200189933180809
+          },
+          {
+            "source": "infra-v5-release-notes.md",
+            "content": "- **PostgreSQL**: Обновление всех RDS инстансов до версии 15.\n- **Redundancy**: Внедрение Multi-AZ для всех критически важных кешей Redis.",
+            "score": 0.03803551197052002
+          },
+          {
+            "source": "cassandra-dr-runbook.md",
+            "content": "- Бэкапы в S3 должны быть зашифрованы ключом KMS.\n- При восстановлении в новом облаке необходимо обновить правила Firewall (Security Groups) для доступа к межсервисному порту 7000/7001.  \n> [!CAUTION]\n> Никогда не запускайте `nodetool repair` на всем кластере одновременно, это создаст критическую нагрузку на диск и сеть. Делайте это по очереди для каждой ноды.",
+            "score": 0.030793895944952965
+          },
+          {
+            "source": "11-postgresql-replication-guide.md",
+            "content": "```bash\n# На реплике, скопируйте бэкап\nsudo rsync -a --delete /var/lib/postgresql/15/main/base_backup/ /var/lib/postgresql/15/main/\n```  \n```ini\n# recovery.conf (или в postgresql.auto.conf для 12+)\nstandby_mode = 'on'\nprimary_conninfo = 'host=master_ip port=5432 user=replicator password=StrongPass123'\ntrigger_file = '/tmp/postgresql.trigger.5432'\n```  \nПерезапустите реплику:  \n```bash\nsudo systemctl start postgresql\n```",
+            "score": 0.023395592346787453
+          },
+          {
+            "source": "post-mortem-db-failure.md",
+            "content": "- **14:15** — Сработал алерт `PostgresHighConnectionCount` в Grafana.\n- **14:20** — Первые жалобы от пользователей на ошибки 500 и \"Connection limit reached\".\n- **14:25** — On-call инженер попытался зайти в контейнер с БД, но получил Connection Timeout.\n- **14:35** — Выявлено, что один из микросервисов (`billing-service`) начал бесконечно пересоздавать коннекты из-за бага в новой версии.\n- **15:00** — Принято решение об откате `billing-service` до предыдущей стабильной версии.\n- **15:30** — Нагрузка на БД начала нормализоваться.\n- **15:40** — Сервис полностью восстановлен.",
+            "score": 0.016394218429923058
+          },
+          {
+            "source": "postgres-backup.md",
+            "content": "Данный ранбук описывает процедуру регулярного бэкапа и экстренного восстановления базы данных PostgreSQL.",
+            "score": 0.015309495851397514
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "postgres",
+            "title": "PostgreSQL: Deadlock Detected > Логи и Сообщения об ошибках",
+            "source_file": "01-postgresql-deadlock.md",
+            "quote": "```text\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db ERROR:  deadlock detected\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db DETAIL:  Process 47823 waits for ShareLock on transaction 89234512; blocked by process 47891.\nProcess 47891 waits for ShareLock on transaction 89234487; blocked by process 47823.\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db HINT:  See server log for query details.\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db CONTEXT:  while updating tuple (0,127) in relation \"user_accounts\"\n2025-11-28 14:32:18.742 UTC [47823] user_service@prod_db STATEMENT:  UPDATE user_accounts SET balance = balance - 100.00 WHERE user_id = 'USR-9284719' AND account_status = 'active'\n```  \n```text\n2025-11-28 14:35:42.129 UTC [48012] payment_worker@prod_db ERROR:  40P01: deadlock detected\n2025-11-28 14:35:42.129 UTC [48012] payment_worker@prod_db LOCATION:  DeadLockReport, deadlock.c:1140\n2025-11-28 14:35:42.130 UTC [48012] payment_worker@prod_db STATEMENT:\nBEGIN;\nUPDATE orders SET status = 'processing', updated_at = NOW() WHERE order_id = 'ORD-88247123';\nINSERT INTO audit_log (order_id, action, timestamp) VALUES ('ORD-88247123', 'status_change', NOW());\nCOMMIT;\nFATAL: terminating connection due to administrator command\nserver closed the connection unexpectedly\nThis probably means the server terminated abnormally\nbefore or while processing the request.\n```  \n```text\n[2025-11-28T14:38:15.834Z] WARN  [pool-7-thread-42] c.m.s.DatabaseTransactionManager - Transaction rollback initiated\norg.postgresql.util.PSQLException: ERROR: deadlock detected\nDetail: Process 49127 waits for ExclusiveLock on tuple (12,94) of relation 16401 of database 16384; blocked by process 49156.\nProcess 49156 waits for ExclusiveLock on tuple (12,88) of relation 16401 of database 16384; blocked by process 49127.\nat org.postgresql.core.v3.QueryExecutorImpl.receiveErrorResponse(QueryExecutorImpl.java:2553)\nat org.postgresql.core.v3.QueryExecutorImpl.processResults(QueryExecutorImpl.java:2285)\nat org.postgresql.core.v3.QueryExecutorImpl.execute(QueryExecutorImpl.java:323)\nat org.postgresql.jdbc.PgStatement.executeInternal(PgStatement.java:473)\nat org.postgresql.jdbc.PgStatement.execute(PgStatement.java:393)\nat com.mycompany.service.PaymentProcessor.processTransfer(PaymentProcessor.java:156)\nat com.mycompany.service.PaymentProcessor$$FastClassBySpringCGLIB$$a8bc1234.invoke(<generated>)\nSQLState: 40P01\nErrorCode: 0\nThread ID: pool-7-thread-42\nRequest UUID: 7f3a9c12-8d44-4f2b-9a1e-3c8b4d7e2f91\n```"
+          },
+          {
+            "doc_id": 2,
+            "service": "postgres",
+            "title": "PostgreSQL: Deadlock Detected > Решение",
+            "source_file": "01-postgresql-deadlock.md",
+            "quote": "**Шаг 1: Немедленное устранение блокировки (если критично)**  \n```bash\n# Найдите PID блокирующего процесса\nSELECT pg_terminate_backend(blocking_pid);\n# Замените blocking_pid на конкретный PID из диагностики\n\n# Если pg_terminate_backend не помогает, используйте более жесткий метод:\nSELECT pg_cancel_backend(blocking_pid);\n```  \n**Шаг 2: Анализ кода приложения**  \nНайдите в коде места, где происходят UPDATE/INSERT в неоптимальном порядке:  \n```bash\n# Проверьте логи приложения на наличие паттернов\ngrep -r \"UPDATE.*WHERE.*=\" app_logs/application-$(date +%Y-%m-%d).log | grep -E \"user_accounts|orders\"\n```  \nТипичные причины дедлоков:\n- Разный порядок обновления строк в разных транзакциях\n- Длинные транзакции с множественными UPDATE\n- Отсутствие индексов на WHERE условиях  \n**Шаг 3: Рефакторинг транзакций**  \nПерепишите код с соблюдением строгого порядка блокировок:  \n```sql\n-- Плохо (может вызвать deadlock):\nBEGIN;\nUPDATE accounts SET balance = balance - 100 WHERE id = 2;\nUPDATE accounts SET balance = balance + 100 WHERE id = 1;\nCOMMIT;\n\n-- Хорошо (всегда обновляем в порядке возрастания ID):\nBEGIN;\nUPDATE accounts SET balance = balance + 100 WHERE id = 1;\nUPDATE accounts SET balance = balance - 100 WHERE id = 2;\nCOMMIT;\n\n-- Или используйте FOR UPDATE с сортировкой:\nBEGIN;\nSELECT * FROM accounts WHERE id IN (1, 2) ORDER BY id FOR UPDATE;\n-- затем UPDATE\nCOMMIT;\n```  \n**Шаг 4: Настройка PostgreSQL для лучшего детектирования**  \n```bash\n# Отредактируйте postgresql.conf\nsudo nano /etc/postgresql/14/main/postgresql.conf\n\n# Добавьте/измените:\ndeadlock_timeout = 1s                    # Быстрее детектировать дедлоки\nlog_lock_waits = on                      # Логировать долгие ожидания\nlock_timeout = 10s                       # Таймаут на получение лока\nstatement_timeout = 30s                  # Общий таймаут запроса\n\n# Перезагрузите конфигурацию\nsudo systemctl reload postgresql\n# или\nSELECT pg_reload_conf();\n```  \n**Шаг 5: Мониторинг и профилактика**  \n```bash\n# Создайте алерт в Prometheus/Grafana:\n# rate(pg_stat_database_deadlocks[5m]) > 0\n\n# Добавьте скрипт проверки в cron\ncat > /usr/local/bin/check_pg_deadlocks.sh << 'EOF'\n#!/bin/bash\nDEADLOCKS=$(psql -U postgres -d prod_db -t -c \"SELECT deadlocks FROM pg_stat_database WHERE datname='prod_db';\")\nif [ \"$DEADLOCKS\" -gt 10 ]; then\necho \"WARNING: Deadlocks detected: $DEADLOCKS\" | mail -s \"PostgreSQL Deadlock Alert\" ops@company.com\nfi\nEOF\n\nchmod +x /usr/local/bin/check_pg_deadlocks.sh\necho \"*/5 * * * * /usr/local/bin/check_pg_deadlocks.sh\" | crontab -\n```  \n**Шаг 6: Код-ревью и best practices**  \n- Держите транзакции короткими\n- Используйте REPEATABLE READ или SERIALIZABLE изоляцию осознанно\n- Всегда блокируйте ресурсы в одном и том же порядке\n- Добавьте retry logic с exponential backoff в приложении:  \n```python\n# Пример на Python\nimport psycopg2\nimport time\n\ndef execute_with_retry(query, max_retries=3):\nfor attempt in range(max_retries):\ntry:\nconn = psycopg2.connect(...)\ncursor = conn.cursor()\ncursor.execute(query)\nconn.commit()\nreturn True\nexcept psycopg2.extensions.TransactionRollbackError as e:\nif \"deadlock detected\" in str(e):\ntime.sleep(2 ** attempt)  # exponential backoff\ncontinue\nraise\nreturn False\n```"
+          },
+          {
+            "doc_id": 4,
+            "service": "postgres",
+            "title": "PostgreSQL: Deadlock Detected > Диагностика",
+            "source_file": "01-postgresql-deadlock.md",
+            "quote": "Проверьте текущие блокировки в базе данных:  \n```bash\n# Подключитесь к PostgreSQL\npsql -U postgres -d prod_db\n\n# Проверьте активные блокировки\nSELECT\nblocked_locks.pid AS blocked_pid,\nblocked_activity.usename AS blocked_user,\nblocking_locks.pid AS blocking_pid,\nblocking_activity.usename AS blocking_user,\nblocked_activity.query AS blocked_statement,\nblocking_activity.query AS blocking_statement,\nblocked_activity.application_name AS blocked_application,\nblocking_activity.application_name AS blocking_application\nFROM pg_catalog.pg_locks blocked_locks\nJOIN pg_catalog.pg_stat_activity blocked_activity ON blocked_activity.pid = blocked_locks.pid\nJOIN pg_catalog.pg_locks blocking_locks\nON blocking_locks.locktype = blocked_locks.locktype\nAND blocking_locks.database IS NOT DISTINCT FROM blocked_locks.database\nAND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation\nAND blocking_locks.page IS NOT DISTINCT FROM blocked_locks.page\nAND blocking_locks.tuple IS NOT DISTINCT FROM blocked_locks.tuple\nAND blocking_locks.virtualxid IS NOT DISTINCT FROM blocked_locks.virtualxid\nAND blocking_locks.transactionid IS NOT DISTINCT FROM blocked_locks.transactionid\nAND blocking_locks.classid IS NOT DISTINCT FROM blocked_locks.classid\nAND blocking_locks.objid IS NOT DISTINCT FROM blocked_locks.objid\nAND blocking_locks.objsubid IS NOT DISTINCT FROM blocked_locks.objsubid\nAND blocking_locks.pid != blocked_locks.pid\nJOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid\nWHERE NOT blocked_locks.granted;\n```  \n```bash\n# Проверьте статистику дедлоков\nSELECT datname, deadlocks\nFROM pg_stat_database\nWHERE datname = 'prod_db';\n\n# Посмотрите долгие транзакции\nSELECT pid, age(clock_timestamp(), xact_start), usename, state, query\nFROM pg_stat_activity\nWHERE state != 'idle'\nORDER BY age DESC\nLIMIT 10;\n```  \n```bash\n# Включите логирование дедлоков для детального анализа\n# В postgresql.conf\ngrep -E \"deadlock_timeout|log_lock_waits\" /etc/postgresql/14/main/postgresql.conf\n\n# Проверьте pg_locks для анализа текущих локов\nSELECT locktype, database, relation::regclass, page, tuple, virtualxid,\ntransactionid, mode, granted, pid\nFROM pg_locks\nWHERE NOT granted\nORDER BY pid;\n```"
+          }
+        ],
+        "latency_sec": 21.286599791026674,
+        "answer_type": "final_answer",
+        "timings": {
+          "query_expansion": 13.58707912499085,
+          "retrieve": 2.628722374967765,
+          "rerank": 2.9171183750149794,
+          "llm_analysis": 0.0006379159749485552,
+          "llm_generation": 2.1425070830155164
+        }
+      },
+      "ragas_scores": {
+        "context_recall": 1.0,
+        "context_precision": 0.999999999975,
+        "faithfulness": 1.0,
+        "answer_relevancy": 0
+      },
+      "error": null
+    }
+  ]
+}

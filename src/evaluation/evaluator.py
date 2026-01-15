@@ -21,6 +21,7 @@ from src.evaluation.schemas import (
     EvaluationReport,
     EvaluationResult,
     EvaluationSummary,
+    Footnote,
     RAGOutput,
     RetrievedContext,
 )
@@ -124,6 +125,16 @@ class RAGEvaluator:
                 generated_answer=response.answer,
                 rewritten_query=response.rewritten_query or "",
                 retrieved_contexts=contexts,
+                footnotes=[
+                    Footnote(
+                        doc_id=f.doc_id,
+                        service=f.service,
+                        title=f.title,
+                        source_file=f.source_file,
+                        quote=f.quote,
+                    )
+                    for f in (response.footnotes or [])
+                ],
                 latency_sec=rag_latency,
                 answer_type=response.answer_type,
                 timings=response.timings,

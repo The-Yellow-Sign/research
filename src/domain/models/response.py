@@ -11,6 +11,7 @@ class SourceDoc(BaseModel):
     """Представляет исходный документ, использованный для генерации ответа.
 
     Атрибуты:
+        doc_id: ID документа для цитирования [doc:X].
         rank: Позиция в ранжированных результатах (начиная с 1).
         score: Оценка релевантности от реранкера (0.0-1.0).
         service: Название сервиса/технологии (например, 'postgres', 'nginx').
@@ -20,9 +21,11 @@ class SourceDoc(BaseModel):
 
     """
 
+    doc_id: int
     rank: int
     score: float
     service: str
     source_file: str
     header_path: str
     content: str
+

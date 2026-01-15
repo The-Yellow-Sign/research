@@ -18,7 +18,9 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from src.application.dto.requests import ChatRequest
-from src.application.dto.responses import ChatResponse
+from src.application.dto.responses import ChatResponse, CitationMetrics
+from src.application.services.citation_formatter import CitationFootnoteBuilder
+from src.application.services.citation_verifier import CitationVerifier
 from src.application.use_cases.document_analyzer import DocumentAnalyzer
 from src.application.use_cases.query_expander import QueryExpander
 from src.config import FINAL_TOP_K, RAG_MODE
@@ -62,6 +64,8 @@ class QueryProcessor:
         self.search_engine = search_engine
         self.query_expander = QueryExpander(llm)
         self.document_analyzer = DocumentAnalyzer(llm)
+        self.citation_verifier = CitationVerifier()
+        self.footnote_builder = CitationFootnoteBuilder()
 
     async def process(self, request: ChatRequest) -> ChatResponse:
         """Обрабатывает запрос через полный RAG-пайплайн.
@@ -175,9 +179,27 @@ class QueryProcessor:
 
         logger.info("LLM Generation (%.2fs)", timings["llm_generation"])
 
+        citation_report = self.citation_verifier.verify(answer, len(analyzed_docs))
+        if citation_report.invalid_citations:
+            logger.warning(
+                "Invalid citations detected: %s (valid: 1-%d)",
+                citation_report.invalid_citations,
+                len(analyzed_docs),
+            )
+            answer = self.citation_verifier.clean_invalid_citations(
+                answer, len(analyzed_docs)
+            )
+
         self._record_metrics(timings, request, docs, analyzed_docs, merged_candidates)
 
         sources = self._build_sources(analyzed_docs)
+        footnotes = self.footnote_builder.build_footnotes(answer, sources)
+
+        citation_metrics = CitationMetrics(
+            coverage=citation_report.citation_coverage,
+            valid_citations=citation_report.valid_citations,
+            invalid_removed=len(citation_report.invalid_citations),
+        )
 
         return ChatResponse(
             answer_type="final_answer",
@@ -185,6 +207,8 @@ class QueryProcessor:
             sources=sources,
             rewritten_query=expansion.rewritten_query,
             timings=timings,
+            citation_metrics=citation_metrics,
+            footnotes=footnotes,
         )
 
     async def process_stream(self, request: ChatRequest) -> AsyncIterator[str]:
@@ -393,6 +417,7 @@ class QueryProcessor:
             content = result.get("original_content", result.get("raw_content", ""))
             sources.append(
                 SourceDoc(
+                    doc_id=idx,
                     rank=idx,
                     score=result.get("score", 0.0),
                     service=result.get("service", "N/A"),
