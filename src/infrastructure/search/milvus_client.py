@@ -188,8 +188,7 @@ class MilvusClient:
         index_params.add_index(
             field_name="vector",
             metric_type="COSINE",
-            index_type="HNSW",
-            params={"M": 16, "efConstruction": 200},
+            index_type="AUTOINDEX",
         )
 
         self.client.create_collection(

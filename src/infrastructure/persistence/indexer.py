@@ -138,8 +138,7 @@ def ensure_milvus_collection(
     index_params.add_index(
         field_name="vector",
         metric_type="COSINE",
-        index_type="HNSW",
-        params={"M": 16, "efConstruction": 128},
+        index_type="AUTOINDEX",
     )
 
     client.create_collection(
