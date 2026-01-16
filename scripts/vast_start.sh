@@ -152,10 +152,12 @@ cd "$INSTALL_DIR"
 uv venv
 source .venv/bin/activate
 
-# Install flashinfer prebuilt for CUDA 12.1/12.2
-echo "Installing FlashInfer..."
-# UV is too strict about package name mismatches in flashinfer wheels. using standard pip.
-pip install flashinfer -i https://flashinfer.ai/whl/cu121/torch2.4/ || echo "FlashInfer prebuilt failed, building from source (slow)"
+# FIX: Install torch FIRST so flashinfer has build dependencies
+uv pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# FIX: Manually install specific version of flashinfer-python via pip
+# This avoids uv's strict resolver issues with missing metadata in the index
+pip install flashinfer-python==0.2.13
 
 echo "Installing SGLang..."
 # Use unsafe-best-match to resolve setuptools/packaging conflicts between PyPI and PyTorch indices
