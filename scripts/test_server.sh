@@ -58,7 +58,7 @@ done
 if [ "$SGLANG_READY" = true ]; then
     echo -e "${GREEN}→ Используем локальные модели (SGLang)${NC}"
     export LLM_BASE_URL="${SGLANG_URL}/v1"
-    export LLM_MODEL="Qwen/Qwen3-80B-Instruct-FP8"
+    export LLM_MODEL="Qwen/Qwen3-Next-80B-A3B-Instruct-FP8"
 else
     echo -e "${YELLOW}→ Используем OpenRouter (удалённые модели)${NC}"
 fi
