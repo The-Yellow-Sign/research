@@ -133,8 +133,10 @@ echo "[6/8] Installing SGLang environment..."
 # Install uv
 if ! command -v uv &> /dev/null; then
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    source $HOME/.cargo/env
 fi
+
+# Ensure uv is in PATH (it installs to ~/.local/bin usually)
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 cd "$INSTALL_DIR"
 uv venv
