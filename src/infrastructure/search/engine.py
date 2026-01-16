@@ -16,8 +16,6 @@ from sentence_transformers import CrossEncoder, SentenceTransformer
 from src.config import (
     EMBEDDING_MODEL_NAME,
     FINAL_TOP_K,
-    MILVUS_HOST,
-    MILVUS_PORT,
     OPENSEARCH_HOST,
     OPENSEARCH_PORT,
     RERANK_MAX_CHARS,
@@ -49,21 +47,17 @@ class SearchEngine:
         self,
         embedder: SentenceTransformer | None = None,
         reranker: CrossEncoder | None = None,
-        milvus_host: str = MILVUS_HOST,
-        milvus_port: str = MILVUS_PORT,
         opensearch_host: str = OPENSEARCH_HOST,
         opensearch_port: int = OPENSEARCH_PORT,
     ) -> None:
         """Инициализирует движок гибридного поиска.
 
         При отсутствии переданных моделей загружает модели из конфигурации.
-        Создаёт клиенты для Milvus и OpenSearch.
+        Создаёт клиенты для Milvus Lite и OpenSearch.
 
         Args:
             embedder: Предзагруженная модель эмбеддингов (опционально).
             reranker: Предзагруженный cross-encoder (опционально).
-            milvus_host: Хост сервера Milvus.
-            milvus_port: Порт сервера Milvus.
             opensearch_host: Хост сервера OpenSearch.
             opensearch_port: Порт сервера OpenSearch.
 
@@ -82,19 +76,15 @@ class SearchEngine:
             logger.info("Используется переданная модель реранкера")
         else:
             logger.info("Загрузка модели реранкера: %s", RERANKER_MODEL_NAME)
-            self.reranker = CrossEncoder(RERANKER_MODEL_NAME, max_length=512)
+            self.reranker = CrossEncoder(RERANKER_MODEL_NAME, max_length=512, device="cuda")
 
-        self.milvus = MilvusClient(
-            embedder=self.embedder,
-            host=milvus_host,
-            port=milvus_port,
-        )
+        self.milvus = MilvusClient(embedder=self.embedder)
         self.opensearch = OpenSearchClient(
             host=opensearch_host,
             port=opensearch_port,
         )
 
-        self.milvus_collection = self.milvus.collection
+        self.milvus_client = self.milvus.client
         self.opensearch_client = self.opensearch.client
 
         logger.info("SearchEngine инициализирован")

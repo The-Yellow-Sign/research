@@ -28,15 +28,15 @@ except ImportError:
 
 
 DEFAULT_ENTITY_LABELS = [
-    "service",          # nginx, redis, postgres, kafka
-    "technology",       # kubernetes, docker, ansible, terraform
-    "command",          # kubectl, docker, systemctl, helm
-    "directive",        # proxy_next_upstream, maxmemory, max_connections
-    "parameter",        # timeout, port, max_retries, buffer_size
-    "error_code",       # 502, 137, OOMKilled, SIGKILL, Connection refused
-    "file_path",        # /etc/nginx/nginx.conf, /var/log/
-    "version",          # v1.2.3, 14.0
-    "environment",      # production, staging, development
+    "service",
+    "technology",
+    "command",
+    "directive",
+    "parameter",
+    "error_code",
+    "file_path",
+    "version",
+    "environment",
 ]
 
 
@@ -60,9 +60,10 @@ def _get_gliner_model() -> Any:
             warnings.filterwarnings("ignore", message=".*max_length.*")
             _gliner_model = GLiNER.from_pretrained("urchade/gliner_large-v2.1")
 
-        # Enable GPU acceleration if available (MPS for Apple Silicon, CUDA for NVIDIA)
+
         try:
             import torch
+
             if torch.backends.mps.is_available():
                 _gliner_model = _gliner_model.to("mps")
                 logger.info("GLiNER model loaded on MPS (Apple GPU)")
@@ -81,7 +82,7 @@ def _get_gliner_model() -> Any:
 def extract_metadata_gliner(
     text: str,
     labels: list[str] | None = None,
-    threshold: float = 0.35,  # Lowered from 0.5 for better recall
+    threshold: float = 0.35,
 ) -> dict[str, list[str]]:
     """Извлекает метаданные через GLiNER zero-shot NER.
 

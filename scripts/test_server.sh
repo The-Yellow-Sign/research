@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/test_server.sh — Полный тест RAG с локальными моделями (SGLang)
+# scripts/test_server.sh — Полный тест RAG с локальными моделями (vLLM)
 # Запуск: ./scripts/test_server.sh
 
 set -e
@@ -11,16 +11,15 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 API_URL="${RAG_API_URL:-http://localhost:8080}"
-SGLANG_URL="http://localhost:8000"
+VLLM_URL="http://localhost:8000"
 
 echo "=========================================="
 echo "🚀 RAG Full Integration Test (Local Models)"
 echo "=========================================="
 echo ""
 
-echo -e "${BLUE}[1/7] Запуск инфраструктуры и SGLang...${NC}"
-docker compose up -d milvus opensearch
-docker compose --profile gpu up -d sglang-main sglang-reranker 2>/dev/null || echo -e "${YELLOW}⚠️  SGLang не запущен (нет GPU?)${NC}"
+echo -e "${BLUE}[1/7] Запуск инфраструктуры...${NC}"
+docker compose up -d milvus opensearch 2>/dev/null || echo -e "${YELLOW}⚠️  Docker Compose не запущен${NC}"
 
 echo "Ожидание готовности..."
 
@@ -43,22 +42,22 @@ for i in {1..30}; do
 done
 echo ""
 
-echo -e "${BLUE}[2/7] Проверка SGLang...${NC}"
-SGLANG_READY=false
+echo -e "${BLUE}[2/7] Проверка vLLM...${NC}"
+VLLM_READY=false
 for i in {1..100}; do
-    if curl -sf "${SGLANG_URL}/health" >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ SGLang готов (${SGLANG_URL})${NC}"
-        SGLANG_READY=true
+    if curl -sf "${VLLM_URL}/v1/models" >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ vLLM готов (${VLLM_URL})${NC}"
+        VLLM_READY=true
         break
     fi
-    [ $i -eq 100 ] && echo -e "${YELLOW}⚠️  SGLang не готов, используем OpenRouter${NC}"
+    [ $i -eq 100 ] && echo -e "${YELLOW}⚠️  vLLM не готов, используем OpenRouter${NC}"
     sleep 3
 done
 
-if [ "$SGLANG_READY" = true ]; then
-    echo -e "${GREEN}→ Используем локальные модели (SGLang)${NC}"
-    export LLM_BASE_URL="${SGLANG_URL}/v1"
-    export LLM_MODEL="Qwen/Qwen3-Next-80B-A3B-Instruct-FP8"
+if [ "$VLLM_READY" = true ]; then
+    echo -e "${GREEN}→ Используем локальные модели (vLLM)${NC}"
+    export LLM_BASE_URL="${VLLM_URL}/v1"
+    export LLM_MODEL="cyankiwi/Qwen3-Next-80B-A3B-Instruct-AWQ-4bit"
 else
     echo -e "${YELLOW}→ Используем OpenRouter (удалённые модели)${NC}"
 fi

@@ -36,7 +36,6 @@ server {
 ```
 
 При ошибках 502/503/504 Nginx автоматически попробует следующий сервер.""",
-
     # From 04-redis-out-of-memory.md - contains commands, parameters
     """## Диагностика OOM в Redis
 
@@ -55,7 +54,6 @@ redis-cli CONFIG GET maxmemory-policy
 - `volatile-lru` — выселяет ключи с TTL по LRU
 - `allkeys-lru` — выселяет любые ключи по LRU
 - `noeviction` — возвращает ошибку OOM (опасно!)""",
-
     # From 02-k8s-crashloopbackoff.md - contains k8s entities
     """## Kubernetes CrashLoopBackOff
 
@@ -79,7 +77,6 @@ resources:
   requests:
     memory: "256Mi"
 ```""",
-
     # From ansible-redis-release.md - contains version, technology
     """## Ansible Role Redis v2.5.0 Release Notes
 
@@ -97,7 +94,6 @@ resources:
 3. **Cluster Mode**: Улучшена поддержка Redis Cluster
    - `redis_cluster_enabled: true`
    - `redis_cluster_replicas: 1`""",
-
     # From db-migration-rds.md - contains services, technologies
     """## Миграция MySQL → PostgreSQL с AWS DMS
 
@@ -117,7 +113,6 @@ aws dms create-replication-task \\
     --target-endpoint-arn $POSTGRES_ENDPOINT \\
     --migration-type full-load-and-cdc
 ```""",
-
     # From sre-handbook.md - contains parameters, procedures
     """## On-Call Response Time SLA
 
@@ -137,7 +132,6 @@ aws dms create-replication-task \\
 - `app_name` — название сервиса
 - `env` — окружение (prod/staging/dev)
 - `trace_id` — ID для distributed tracing""",
-
     # From linux-network-tuning.md - contains sysctl parameters
     """## Тюнинг сетевого стека Linux
 
@@ -160,7 +154,6 @@ sysctl -w net.ipv4.tcp_fastopen=3
 
 Алгоритм `bbr` (Bottleneck Bandwidth and RTT) рекомендуется вместо стандартного CUBIC
 для современных сетей с высокой пропускной способностью.""",
-
     # From terraform-aws-auth.md - contains environment variables
     """## Аутентификация Terraform в AWS и GCP
 
@@ -234,6 +227,7 @@ def get_device():
     """Определяет лучшее доступное устройство: MPS > CUDA > CPU."""
     try:
         import torch
+
         if torch.backends.mps.is_available():
             print("   🍎 Using MPS (Apple GPU)")
             return "mps"
@@ -259,8 +253,15 @@ def test_gliner_medium():
         return None, 0
 
     labels = [
-        "service", "technology", "command", "directive",
-        "parameter", "error_code", "file_path", "version", "environment"
+        "service",
+        "technology",
+        "command",
+        "directive",
+        "parameter",
+        "error_code",
+        "file_path",
+        "version",
+        "environment",
     ]
 
     device = get_device()
@@ -292,7 +293,7 @@ def test_gliner_medium():
             print(f"\n{i + 1}. Chunk preview: {chunk[:60].replace(chr(10), ' ')}...")
             print(f"   → {extracted if extracted else '(no entities)'}")
         except Exception as e:
-            print(f"\n{i+1}. Error: {e}")
+            print(f"\n{i + 1}. Error: {e}")
 
     elapsed = time.time() - start_time
     print(f"\n⏱️  Total time: {elapsed:.2f}s ({elapsed / len(TEST_DOCUMENT_CHUNKS):.2f}s per chunk)")
@@ -313,8 +314,15 @@ def test_gliner_large():
         return None, 0
 
     labels = [
-        "service", "technology", "command", "directive",
-        "parameter", "error_code", "file_path", "version", "environment"
+        "service",
+        "technology",
+        "command",
+        "directive",
+        "parameter",
+        "error_code",
+        "file_path",
+        "version",
+        "environment",
     ]
 
     device = get_device()
@@ -347,7 +355,7 @@ def test_gliner_large():
             print(f"\n{i + 1}. Chunk preview: {chunk[:60].replace(chr(10), ' ')}...")
             print(f"   → {extracted if extracted else '(no entities)'}")
         except Exception as e:
-            print(f"\n{i+1}. Error: {e}")
+            print(f"\n{i + 1}. Error: {e}")
 
     elapsed = time.time() - start_time
     print(f"\n⏱️  Total time: {elapsed:.2f}s ({elapsed / len(TEST_DOCUMENT_CHUNKS):.2f}s per chunk)")
@@ -368,8 +376,15 @@ def test_gliner2():
         return None, 0
 
     labels = [
-        "service", "technology", "command", "directive",
-        "parameter", "error_code", "file_path", "version", "environment"
+        "service",
+        "technology",
+        "command",
+        "directive",
+        "parameter",
+        "error_code",
+        "file_path",
+        "version",
+        "environment",
     ]
 
     try:
@@ -396,7 +411,7 @@ def test_gliner2():
             print(f"\n{i + 1}. Chunk preview: {chunk[:60].replace(chr(10), ' ')}...")
             print(f"   → {extracted if extracted else '(no entities)'}")
         except Exception as e:
-            print(f"\n{i+1}. Error: {e}")
+            print(f"\n{i + 1}. Error: {e}")
 
     elapsed = time.time() - start_time
     print(f"\n⏱️  Total time: {elapsed:.2f}s ({elapsed / len(TEST_DOCUMENT_CHUNKS):.2f}s per chunk)")
@@ -417,8 +432,15 @@ def test_gliner2_large():
         return None, 0
 
     labels = [
-        "service", "technology", "command", "directive",
-        "parameter", "error_code", "file_path", "version", "environment"
+        "service",
+        "technology",
+        "command",
+        "directive",
+        "parameter",
+        "error_code",
+        "file_path",
+        "version",
+        "environment",
     ]
 
     try:
@@ -447,7 +469,7 @@ def test_gliner2_large():
             print(f"\n{i + 1}. Chunk preview: {chunk[:60].replace(chr(10), ' ')}...")
             print(f"   → {extracted if extracted else '(no entities)'}")
         except Exception as e:
-            print(f"\n{i+1}. Error: {e}")
+            print(f"\n{i + 1}. Error: {e}")
 
     elapsed = time.time() - start_time
     print(f"\n⏱️  Total time: {elapsed:.2f}s ({elapsed / len(TEST_DOCUMENT_CHUNKS):.2f}s per chunk)")
@@ -462,9 +484,7 @@ def _extract_zeroner_entities(model, tokenizer, text, entity_descriptions, devic
     extracted = {}
     for label, description in entity_descriptions.items():
         prompt = f"{text} [SEP] {description}"
-        inputs = tokenizer(
-            prompt, return_tensors="pt", truncation=True, max_length=512
-        )
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
 
         if device in ("mps", "cuda"):
             inputs = {k: v.to(device) for k, v in inputs.items()}
@@ -483,9 +503,7 @@ def _extract_zeroner_entities(model, tokenizer, text, entity_descriptions, devic
         except ValueError:
             sep_idx = len(tokens)
 
-        for token, tag in zip(
-            tokens[:sep_idx], predicted_tags[:sep_idx], strict=False
-        ):
+        for token, tag in zip(tokens[:sep_idx], predicted_tags[:sep_idx], strict=False):
             if token in ["[CLS]", "[SEP]", "[PAD]"]:
                 continue
 
@@ -565,7 +583,7 @@ def test_zeroner():
             print(f"\n{i + 1}. Chunk preview: {chunk[:60].replace(chr(10), ' ')}...")
             print(f"   → {extracted if extracted else '(no entities)'}")
         except Exception as e:
-            print(f"\n{i+1}. Error: {e}")
+            print(f"\n{i + 1}. Error: {e}")
 
     elapsed = time.time() - start_time
     print(f"\n⏱️  Total time: {elapsed:.2f}s ({elapsed / len(TEST_DOCUMENT_CHUNKS):.2f}s per chunk)")
@@ -601,32 +619,42 @@ if __name__ == "__main__":
     print("=" * 60)
 
     if gliner_results:
-        print(f"GLiNER Medium: {gliner_time:.2f}s total "
-              f"({gliner_time/len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)")
+        print(
+            f"GLiNER Medium: {gliner_time:.2f}s total "
+            f"({gliner_time / len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)"
+        )
     else:
         print("GLiNER Medium: Failed")
 
     if gliner_large_results:
-        print(f"GLiNER Large:  {gliner_large_time:.2f}s total "
-              f"({gliner_large_time/len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)")
+        print(
+            f"GLiNER Large:  {gliner_large_time:.2f}s total "
+            f"({gliner_large_time / len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)"
+        )
     else:
         print("GLiNER Large:  Failed/Skipped")
 
     if gliner2_results:
-        print(f"GLiNER2 Base:  {gliner2_time:.2f}s total "
-              f"({gliner2_time/len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)")
+        print(
+            f"GLiNER2 Base:  {gliner2_time:.2f}s total "
+            f"({gliner2_time / len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)"
+        )
     else:
         print("GLiNER2 Base:  Not installed")
 
     if gliner2_large_results:
-        print(f"GLiNER2 Large: {gliner2_large_time:.2f}s total "
-              f"({gliner2_large_time/len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)")
+        print(
+            f"GLiNER2 Large: {gliner2_large_time:.2f}s total "
+            f"({gliner2_large_time / len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)"
+        )
     else:
         print("GLiNER2 Large: Failed/Skipped")
 
     if zeroner_results:
-        print(f"ZeroNER:       {zeroner_time:.2f}s total "
-              f"({zeroner_time/len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)")
+        print(
+            f"ZeroNER:       {zeroner_time:.2f}s total "
+            f"({zeroner_time / len(TEST_DOCUMENT_CHUNKS):.2f}s/chunk)"
+        )
     else:
         print("ZeroNER:       Failed/Skipped")
 

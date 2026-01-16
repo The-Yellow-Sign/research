@@ -61,22 +61,21 @@ class Settings(BaseSettings):
     rerank_max_chars: int = Field(default=1500, description="Максимум символов для реранкинга")
 
     llm_base_url: str = Field(
-        default="http://localhost:1234/v1",
-        description="URL OpenAI-совместимого API",
+        default="http://localhost:8000/v1",
+        description="URL OpenAI-совместимого API (vLLM)",
     )
-    llm_model: str = Field(default="qwen2.5-7b-instruct", description="Название LLM модели")
+    llm_model: str = Field(
+        default="cyankiwi/Qwen3-Next-80B-A3B-Instruct-AWQ-4bit",
+        description="Название LLM модели",
+    )
     llm_api_key: str = Field(
         default="dummy-local-key",
         description="API ключ LLM (для локальных моделей может быть любым)",
     )
 
-    sglang_main_url: str = Field(
-        default="http://localhost:8000/v1",
-        description="URL SGLang сервера для основной LLM (Qwen3-80B)",
-    )
-    sglang_reranker_url: str = Field(
+    vllm_reranker_url: str = Field(
         default="http://localhost:8001/v1",
-        description="URL SGLang сервера для реранкера (Qwen3-8B)",
+        description="URL vLLM сервера для LLM-реранкера (опционально)",
     )
 
     chunk_size: int = Field(default=600, description="Размер чанка")

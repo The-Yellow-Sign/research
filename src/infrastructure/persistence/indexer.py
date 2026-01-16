@@ -1,4 +1,4 @@
-"""Модуль индексации данных в OpenSearch и Milvus.
+"""Модуль индексации данных в OpenSearch и Milvus Lite.
 
 Отвечает за:
 - Создание и управление индексами/коллекциями
@@ -7,26 +7,18 @@
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
-from pymilvus import (
-    Collection,
-    CollectionSchema,
-    DataType,
-    FieldSchema,
-    connections,
-    utility,
-)
+from pymilvus import DataType, MilvusClient
 from sentence_transformers import SentenceTransformer
 
 from src.config import (
     DOC_PREFIX,
     MILVUS_BATCH_SIZE,
     MILVUS_COLLECTION,
-    MILVUS_HOST,
-    MILVUS_PORT,
     OPENSEARCH_HOST,
     OPENSEARCH_INDEX,
     OPENSEARCH_PARENT_INDEX,
@@ -35,6 +27,9 @@ from src.config import (
 from src.infrastructure.persistence.file_registry import ensure_opensearch_files_index
 
 logger = logging.getLogger(__name__)
+
+
+MILVUS_LITE_PATH = Path("/workspace/data/milvus_lite.db")
 
 
 def ensure_opensearch_parent_index(client: OpenSearch) -> bool:
@@ -111,41 +106,50 @@ def ensure_opensearch_children_index(client: OpenSearch) -> bool:
     return True
 
 
-def ensure_milvus_collection(vector_dim: int) -> Collection:
-    """Создаёт коллекцию Milvus."""
-    logger.info("Подключение к Milvus: %s:%s", MILVUS_HOST, MILVUS_PORT)
-    connections.connect("default", host=MILVUS_HOST, port=MILVUS_PORT)
+def ensure_milvus_collection(
+    vector_dim: int,
+    db_path: str | Path = MILVUS_LITE_PATH,
+) -> MilvusClient:
+    """Создаёт Milvus Lite клиент и коллекцию."""
+    db_path = Path(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    if utility.has_collection(MILVUS_COLLECTION):
-        collection = Collection(MILVUS_COLLECTION)
-        collection.load()
-        return collection
+    logger.info("Подключение к Milvus Lite: %s", db_path)
+    client = MilvusClient(str(db_path))
 
-    fields = [
-        FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-        FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=vector_dim),
-        FieldSchema(name="text", dtype=DataType.VARCHAR, max_length=60000),
-        FieldSchema(name="raw_content", dtype=DataType.VARCHAR, max_length=60000),
-        FieldSchema(name="parent_id", dtype=DataType.VARCHAR, max_length=64),
-        FieldSchema(name="chunk_type", dtype=DataType.VARCHAR, max_length=32),
-        FieldSchema(name="source_file", dtype=DataType.VARCHAR, max_length=512),
-        FieldSchema(name="header_path", dtype=DataType.VARCHAR, max_length=2048),
-        FieldSchema(name="service", dtype=DataType.VARCHAR, max_length=128),
-    ]
+    if client.has_collection(MILVUS_COLLECTION):
+        logger.info("Коллекция '%s' уже существует", MILVUS_COLLECTION)
+        return client
 
-    schema = CollectionSchema(fields, description="DevOps Knowledge Base - Children")
-    collection = Collection(MILVUS_COLLECTION, schema)
 
-    index_params = {
-        "metric_type": "COSINE",
-        "index_type": "HNSW",
-        "params": {"M": 16, "efConstruction": 128},
-    }
-    collection.create_index(field_name="vector", index_params=index_params)
-    collection.load()
+    schema = client.create_schema(auto_id=True, enable_dynamic_field=False)
+    schema.add_field("id", DataType.INT64, is_primary=True)
+    schema.add_field("vector", DataType.FLOAT_VECTOR, dim=vector_dim)
+    schema.add_field("text", DataType.VARCHAR, max_length=60000)
+    schema.add_field("raw_content", DataType.VARCHAR, max_length=60000)
+    schema.add_field("parent_id", DataType.VARCHAR, max_length=64)
+    schema.add_field("chunk_type", DataType.VARCHAR, max_length=32)
+    schema.add_field("source_file", DataType.VARCHAR, max_length=512)
+    schema.add_field("header_path", DataType.VARCHAR, max_length=2048)
+    schema.add_field("service", DataType.VARCHAR, max_length=128)
+
+
+    index_params = client.prepare_index_params()
+    index_params.add_index(
+        field_name="vector",
+        metric_type="COSINE",
+        index_type="HNSW",
+        params={"M": 16, "efConstruction": 128},
+    )
+
+    client.create_collection(
+        collection_name=MILVUS_COLLECTION,
+        schema=schema,
+        index_params=index_params,
+    )
 
     logger.info("Создана коллекция: %s", MILVUS_COLLECTION)
-    return collection
+    return client
 
 
 def init_opensearch() -> OpenSearch:
@@ -168,41 +172,42 @@ def init_opensearch() -> OpenSearch:
 
 def delete_by_source_file(
     os_client: OpenSearch,
-    milvus_collection: Collection,
+    milvus_client: MilvusClient,
     source_files: list[str],
 ) -> None:
-    """Удаляет все документы для указанных файлов (по полному относительному пути)."""
+    """Удаляет все документы для указанных файлов."""
     if not source_files:
         return
 
     logger.info("Удаление данных для %d файлов...", len(source_files))
 
     for source_file in source_files:
-        target_file = source_file
-
         try:
             os_client.delete_by_query(
                 index=OPENSEARCH_PARENT_INDEX,
-                body={"query": {"term": {"source_file": target_file}}},
+                body={"query": {"term": {"source_file": source_file}}},
                 ignore=[404],
             )
         except Exception as e:
-            logger.warning("Ошибка удаления parents для %s: %s", target_file, e)
+            logger.warning("Ошибка удаления parents для %s: %s", source_file, e)
 
         try:
             os_client.delete_by_query(
                 index=OPENSEARCH_INDEX,
-                body={"query": {"term": {"source_file": target_file}}},
+                body={"query": {"term": {"source_file": source_file}}},
                 ignore=[404],
             )
         except Exception as e:
-            logger.warning("Ошибка удаления children из OpenSearch для %s: %s", target_file, e)
+            logger.warning("Ошибка удаления children из OpenSearch для %s: %s", source_file, e)
 
         try:
-            expr = f'source_file == "{target_file}"'
-            milvus_collection.delete(expr)
+            if milvus_client.has_collection(MILVUS_COLLECTION):
+                milvus_client.delete(
+                    collection_name=MILVUS_COLLECTION,
+                    filter=f'source_file == "{source_file}"',
+                )
         except Exception as e:
-            logger.warning("Ошибка удаления из Milvus для %s: %s", target_file, e)
+            logger.warning("Ошибка удаления из Milvus для %s: %s", source_file, e)
 
     logger.info("Удаление завершено для %d файлов", len(source_files))
 
@@ -266,15 +271,11 @@ def index_children_to_opensearch(
 
 
 def index_children_to_milvus(
-    collection: Collection,
+    milvus_client: MilvusClient,
     model: SentenceTransformer,
     children: list[dict[str, Any]],
 ) -> None:
-    """Batch-индексация children в Milvus.
-
-    Добавляет логирование статистики токенов для мониторинга
-    лимита FRIDA (512 токенов).
-    """
+    """Batch-индексация children в Milvus Lite."""
     if not children:
         return
 
@@ -309,22 +310,23 @@ def index_children_to_milvus(
 
         vectors = model.encode(prefixed_texts, show_progress_bar=False)
 
-        collection.insert(
-            [
-                vectors.tolist(),
-                texts,
-                raw_contents,
-                [meta.get("parent_id", "") for meta in metas],
-                chunk_types,
-                [meta.get("source_file", "") for meta in metas],
-                [meta.get("header_path", "") for meta in metas],
-                [meta.get("service", "general") for meta in metas],
-            ]
-        )
 
+        data = [
+            {
+                "vector": vectors[i].tolist(),
+                "text": texts[i],
+                "raw_content": raw_contents[i],
+                "parent_id": metas[i].get("parent_id", ""),
+                "chunk_type": chunk_types[i],
+                "source_file": metas[i].get("source_file", ""),
+                "header_path": metas[i].get("header_path", ""),
+                "service": metas[i].get("service", "general"),
+            }
+            for i in range(len(batch))
+        ]
+
+        milvus_client.insert(collection_name=MILVUS_COLLECTION, data=data)
         logger.info("Проиндексирован batch %d/%d в Milvus", batch_idx + 1, total_batches)
-
-    collection.flush()
 
     if all_token_lengths:
         avg_tokens = sum(all_token_lengths) / len(all_token_lengths)
@@ -342,7 +344,7 @@ def index_children_to_milvus(
 
 def index_data(
     os_client: OpenSearch,
-    milvus_collection: Collection,
+    milvus_client: MilvusClient,
     model: SentenceTransformer,
     parents: list[dict[str, Any]],
     children: list[dict[str, Any]],
@@ -356,4 +358,4 @@ def index_data(
 
     index_parents_to_opensearch(os_client, parents)
     index_children_to_opensearch(os_client, children)
-    index_children_to_milvus(milvus_collection, model, children)
+    index_children_to_milvus(milvus_client, model, children)

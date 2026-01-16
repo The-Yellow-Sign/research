@@ -243,7 +243,59 @@ class EvalLLMClient:
             logger.error("Ошибка генерации LLM: %s", e)
             raise RuntimeError(f"Ошибка генерации ответа: {e}") from e
 
-    async def rerank_batch(  # noqa: C901
+    async def _rerank_single(self, query: str, doc: dict) -> float:
+        """Обработка одного документа (внутренний метод)."""
+        content = doc.get("raw_content", "")[:1500]
+        prompt = f"{RERANKER_PROMPT_SINGLE}\n\nQuery: {query}\n\nDocument:\n---\n{content}\n---"
+        try:
+            response = await self.client.chat.completions.parse(
+                model=self.reranking_model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format=RerankerResult,
+                temperature=0.0,
+                max_tokens=500,
+                extra_body=self._get_routing_config(),
+            )
+            result = response.choices[0].message.parsed
+            return result.relevance_score if result else 0.5
+        except Exception as e:
+            logger.warning("Rerank single error: %s", e)
+            return 0.5
+
+    async def _rerank_batch_chunk(self, query: str, batch: list[dict]) -> list[float]:
+        """Обработка батча документов (внутренний метод)."""
+        if len(batch) == 1:
+            score = await self._rerank_single(query, batch[0])
+            return [score]
+
+        blocks_text = ""
+        for idx, doc in enumerate(batch, 1):
+            content = doc.get("raw_content", "")[:1500]
+            blocks_text += f"\n[Block {idx}]:\n{content}\n"
+
+        prompt = f"{RERANKER_PROMPT_BATCH}\n\nQuery: {query}\n{blocks_text}"
+
+        try:
+            response = await self.client.chat.completions.parse(
+                model=self.reranking_model,
+                messages=[{"role": "user", "content": prompt}],
+                response_format=RerankerBatchResult,
+                temperature=0.0,
+                max_tokens=2000,
+                extra_body=self._get_routing_config(),
+            )
+            result = response.choices[0].message.parsed
+            if result and result.block_rankings:
+                scores = [r.relevance_score for r in result.block_rankings[: len(batch)]]
+                while len(scores) < len(batch):
+                    scores.append(0.5)
+                return scores
+            return [0.5] * len(batch)
+        except Exception as e:
+            logger.warning("Rerank batch error: %s", e)
+            return [0.5] * len(batch)
+
+    async def rerank_batch(
         self,
         query: str,
         documents: list[dict],
@@ -262,64 +314,12 @@ class EvalLLMClient:
         """
         import asyncio
 
-        async def process_single(doc: dict) -> float:
-            """Обработка одного документа."""
-            content = doc.get("raw_content", "")[:1500]
-            prompt = f"{RERANKER_PROMPT_SINGLE}\n\nQuery: {query}\n\nDocument:\n---\n{content}\n---"
-            try:
-                response = await self.client.chat.completions.parse(
-                    model=self.reranking_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format=RerankerResult,
-                    temperature=0.0,
-                    max_tokens=500,
-                    extra_body=self._get_routing_config(),
-                )
-                result = response.choices[0].message.parsed
-                return result.relevance_score if result else 0.5
-            except Exception as e:
-                logger.warning("Rerank single error: %s", e)
-                return 0.5
-
-        async def process_batch(batch: list[dict], start_idx: int) -> list[float]:
-            """Обработка батча документов."""
-            if len(batch) == 1:
-                score = await process_single(batch[0])
-                return [score]
-
-            blocks_text = ""
-            for idx, doc in enumerate(batch, 1):
-                content = doc.get("raw_content", "")[:1500]
-                blocks_text += f"\n[Block {idx}]:\n{content}\n"
-
-            prompt = f"{RERANKER_PROMPT_BATCH}\n\nQuery: {query}\n{blocks_text}"
-
-            try:
-                response = await self.client.chat.completions.parse(
-                    model=self.reranking_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    response_format=RerankerBatchResult,
-                    temperature=0.0,
-                    max_tokens=2000,
-                    extra_body=self._get_routing_config(),
-                )
-                result = response.choices[0].message.parsed
-                if result and result.block_rankings:
-                    scores = [r.relevance_score for r in result.block_rankings[: len(batch)]]
-                    while len(scores) < len(batch):
-                        scores.append(0.5)
-                    return scores
-                return [0.5] * len(batch)
-            except Exception as e:
-                logger.warning("Rerank batch error: %s", e)
-                return [0.5] * len(batch)
-
         batches = []
         for i in range(0, len(documents), batch_size):
             batch = documents[i : i + batch_size]
-            batches.append((batch, i))
+            batches.append(batch)
 
-        tasks = [process_batch(batch, idx) for batch, idx in batches]
+        tasks = [self._rerank_batch_chunk(query, batch) for batch in batches]
         results = await asyncio.gather(*tasks)
 
         scores = []
