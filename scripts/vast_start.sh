@@ -152,12 +152,14 @@ cd "$INSTALL_DIR"
 uv venv
 source .venv/bin/activate
 
-# Install flashinfer prebuilt for CUDA 12.1/12.2 (common for H100 images) to save build time
+# Install flashinfer prebuilt for CUDA 12.1/12.2
 echo "Installing FlashInfer..."
-uv pip install flashinfer -i https://flashinfer.ai/whl/cu121/torch2.4/ || echo "FlashInfer prebuilt failed, building from source (slow)"
+uv pip install flashinfer-python -i https://flashinfer.ai/whl/cu121/torch2.4/ || echo "FlashInfer prebuilt failed, building from source (slow)"
 
 echo "Installing SGLang..."
-uv pip install "sglang[all]" --extra-index-url https://download.pytorch.org/whl/cu121
+# Use unsafe-best-match to resolve setuptools/packaging conflicts between PyPI and PyTorch indices
+uv pip install "sglang[all]" --extra-index-url https://download.pytorch.org/whl/cu121 --index-strategy unsafe-best-match
+
 uv pip install pymilvus opensearch-py openai huggingface_hub
 
 # 7. Download Models
