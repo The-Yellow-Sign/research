@@ -22,8 +22,18 @@ mkdir -p "$DATA_DIR"
 mkdir -p "$DATA_DIR/etcd" "$DATA_DIR/minio" "$DATA_DIR/milvus" "$DATA_DIR/hf_cache"
 
 # 1. System Dependencies
-echo "[1/7] Installing system dependencies..."
+echo "[1/8] Installing system dependencies..."
 apt-get update && apt-get install -y libaio-dev libaio1 wget curl python3-pip python3-venv git
+
+# 2. Clone Repository
+echo "[2/8] Cloning Repository..."
+if [ ! -d "/workspace/research" ]; then
+    # Try public clone first
+    git clone -b feature/agentic-rag https://github.com/The-Yellow-Sign/research.git /workspace/research || echo "⚠️ Repository clone failed (might be private). Clone manually."
+else
+    echo "Repository already exists in /workspace/research"
+    cd /workspace/research && git pull origin feature/agentic-rag
+fi
 
 # 2. Install & Start Etcd
 echo "[2/7] Setting up Etcd..."
