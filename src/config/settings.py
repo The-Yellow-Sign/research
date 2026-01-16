@@ -70,6 +70,15 @@ class Settings(BaseSettings):
         description="API ключ LLM (для локальных моделей может быть любым)",
     )
 
+    sglang_main_url: str = Field(
+        default="http://localhost:8000/v1",
+        description="URL SGLang сервера для основной LLM (Qwen3-80B)",
+    )
+    sglang_reranker_url: str = Field(
+        default="http://localhost:8001/v1",
+        description="URL SGLang сервера для реранкера (Qwen3-8B)",
+    )
+
     chunk_size: int = Field(default=600, description="Размер чанка")
     min_chunk_chars: int = Field(default=50, description="Минимум символов в чанке")
     code_block_pattern: str = Field(
@@ -103,6 +112,18 @@ class Settings(BaseSettings):
 
     llm_timeout: float = Field(default=60.0, description="Таймаут LLM запросов (секунды)")
     max_context_chars: int = Field(default=16000, description="Макс. длина контекста (символы)")
+
+    circuit_failure_threshold: int = Field(
+        default=3,
+        description="Количество ошибок для открытия Circuit Breaker",
+    )
+    circuit_recovery_timeout: int = Field(
+        default=30,
+        description="Время восстановления Circuit Breaker (секунды)",
+    )
+    llm_max_retries: int = Field(default=3, description="Максимум повторов LLM запросов")
+    db_max_retries: int = Field(default=2, description="Максимум повторов запросов к БД")
+    prometheus_enabled: bool = Field(default=True, description="Включить Prometheus метрики")
 
     metrics_buffer_size: int = Field(default=10000, description="Макс. записей в буфере метрик")
 

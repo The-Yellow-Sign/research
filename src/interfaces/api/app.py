@@ -1,6 +1,7 @@
 """FastAPI веб-API для RAG-сервиса.
 
 Обёртка над RAGService, предоставляющая HTTP-эндпоинты.
+RFC 9457 Problem Details для структурированных ошибок.
 """
 
 import logging
@@ -8,8 +9,9 @@ from contextlib import asynccontextmanager
 from typing import Annotated, AsyncGenerator
 
 import uvicorn
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from opensearchpy.exceptions import ConnectionError as OpenSearchConnectionError
 from pymilvus.exceptions import MilvusException
 
@@ -18,7 +20,9 @@ from src.application.dto import ChatRequest, ChatResponse
 from src.config.logging_config import setup_logging
 from src.config.settings import settings
 from src.config.telemetry import instrument_fastapi, setup_telemetry
+from src.infrastructure.resilience import CircuitOpenError
 from src.infrastructure.search import SearchEngine
+from src.interfaces.api.problem import ProblemDetail, create_problem
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +69,70 @@ app.add_middleware(
 )
 
 
+def problem_response(problem: ProblemDetail) -> JSONResponse:
+    """Создаёт JSONResponse из ProblemDetail."""
+    return JSONResponse(
+        status_code=problem.status,
+        content=problem.model_dump(),
+        media_type="application/problem+json",
+    )
+
+
+@app.exception_handler(CircuitOpenError)
+async def circuit_open_handler(request: Request, exc: CircuitOpenError) -> JSONResponse:
+    """Обработчик открытого Circuit Breaker."""
+    logger.warning("Circuit '%s' открыт, запрос отклонён", exc.circuit_name)
+    problem = create_problem(
+        "rag/llm-unavailable",
+        f"Сервис {exc.circuit_name} временно недоступен. Повторите позже.",
+        str(request.url),
+    )
+    return problem_response(problem)
+
+
+@app.exception_handler(TimeoutError)
+async def timeout_handler(request: Request, exc: TimeoutError) -> JSONResponse:
+    """Обработчик таймаута."""
+    logger.error("Таймаут запроса: %s", exc)
+    problem = create_problem(
+        "rag/llm-timeout",
+        str(exc) or "Превышено время ожидания ответа",
+        str(request.url),
+    )
+    return problem_response(problem)
+
+
+@app.exception_handler(ValueError)
+async def validation_handler(request: Request, exc: ValueError) -> JSONResponse:
+    """Обработчик ошибок валидации."""
+    logger.warning("Ошибка валидации: %s", exc)
+    problem = create_problem(
+        "rag/invalid-request",
+        str(exc),
+        str(request.url),
+    )
+    return problem_response(problem)
+
+
+@app.exception_handler(OpenSearchConnectionError)
+@app.exception_handler(MilvusException)
+async def db_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Обработчик ошибок подключения к БД."""
+    logger.error("Ошибка подключения к БД: %s", exc)
+    problem = create_problem(
+        "rag/llm-unavailable",
+        "Временная ошибка базы знаний. Попробуйте позже.",
+        str(request.url),
+    )
+    return problem_response(problem)
+
+
 def get_rag_service(request: Request) -> RAGService:
     """Dependency function для получения RAGService."""
     service = getattr(request.app.state, "rag_service", None)
     if service is None:
         logger.error("RAGService не инициализирован")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Сервис инициализируется или недоступен.",
-        )
+        raise ValueError("Сервис инициализируется или недоступен")
     return service
 
 
@@ -88,12 +147,7 @@ async def health_check() -> dict[str, str]:
 
 @app.get("/health/ready")
 async def readiness_probe(request: Request) -> dict[str, str | dict[str, bool]]:
-    """Проверяет готовность всех внешних сервисов.
-
-    Returns:
-        Статус сервисов: Milvus, OpenSearch, LLM API.
-
-    """
+    """Проверяет готовность всех внешних сервисов."""
     checks: dict[str, bool] = {}
 
     search_engine = getattr(request.app.state, "search_engine", None)
@@ -136,35 +190,15 @@ async def chat(
     service: RAGServiceDep,
 ) -> ChatResponse:
     """Обрабатывает чат-запрос через RAG-пайплайн."""
-    try:
-        response = await service.process_query(request)
-        return response
-
-    except (OpenSearchConnectionError, MilvusException) as e:
-        logger.error("Ошибка подключения к БД: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Временная ошибка базы знаний. Попробуйте позже.",
-        ) from e
-    except ValueError as e:
-        logger.warning("Ошибка валидации/данных: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
-    except Exception as e:
-        logger.exception("Непредвиденная ошибка обработки запроса")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Внутренняя ошибка сервера.",
-        ) from e
+    response = await service.process_query(request)
+    return response
 
 
 if __name__ == "__main__":
     uvicorn.run(
         "src.interfaces.api.app:app",
-        host=settings.server_host,
-        port=settings.server_port,
-        reload=settings.reload,
+        host="127.0.0.1",
+        port=8080,
+        reload=True,
         log_level="info",
     )
