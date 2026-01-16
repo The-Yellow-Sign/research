@@ -23,7 +23,7 @@ mkdir -p "$DATA_DIR/etcd" "$DATA_DIR/minio" "$DATA_DIR/milvus" "$DATA_DIR/hf_cac
 
 # 1. System Dependencies
 echo "[1/8] Installing system dependencies..."
-apt-get update && apt-get install -y libaio-dev libaio1 wget curl python3-pip python3-venv git
+apt-get update && apt-get install -y libaio-dev libaio1 wget curl python3-pip python3-venv git libnuma-dev
 
 # 2. Clone Repository
 echo "[2/8] Cloning Repository..."
