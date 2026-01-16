@@ -136,7 +136,7 @@ export HF_HOME="$DATA_DIR/hf_cache"
 
 # ВАЖНО: TP_SIZE=2 обязательно для 2x3090/4090.
 # Если у вас 1x A6000/A100 (48GB+), можно ставить 1.
-TP_SIZE=2 
+TP_SIZE=1 
 
 echo "Starting Qwen3-Next-80B-A3B (AWQ)... TP=\$TP_SIZE"
 
