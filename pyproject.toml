@@ -27,7 +27,8 @@ dependencies = [
     "scipy>=1.16.3",
     "onnxruntime>=1.23.2",
     "optimum[onnxruntime]>=2.1.0",
-    "gliner>=0.2.0",  # Optional: zero-shot NER for metadata extraction
+    "gliner>=0.2.0", # Optional: zero-shot NER for metadata extraction
+    "tavily-python>=0.7.19",
 ]
 
 [tool.ruff]

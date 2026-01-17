@@ -15,6 +15,7 @@ from pymilvus.exceptions import MilvusException
 
 from src.application import RAGService
 from src.application.dto import ChatRequest, ChatResponse
+from src.application.use_cases.agent_controller import AgentController
 from src.config.logging_config import setup_logging
 from src.config.settings import settings
 from src.config.telemetry import instrument_fastapi, setup_telemetry
@@ -160,11 +161,98 @@ async def chat(
         ) from e
 
 
+def get_agent_controller(request: Request):
+    """Dependency для AgentController."""
+    from src.application.tools import (
+        CodeExecTool,
+        FinalAnswerTool,
+        RagSearchTool,
+        VerifyAnswerTool,
+        WebSearchTool,
+    )
+
+    search_engine = getattr(request.app.state, "search_engine", None)
+    rag_service = getattr(request.app.state, "rag_service", None)
+
+    if not search_engine or not rag_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Сервисы инициализируются.",
+        )
+
+    tools = [
+        RagSearchTool(search_engine=search_engine),
+        WebSearchTool(),
+        CodeExecTool(),
+        VerifyAnswerTool(llm=rag_service.llm_client),
+        FinalAnswerTool(),
+    ]
+
+    return AgentController(tools=tools)
+
+
+AgentControllerDep = Annotated[AgentController, Depends(get_agent_controller)]
+
+
+@app.post("/agent/chat")
+async def agent_chat(
+    request: ChatRequest,
+    controller: AgentControllerDep,
+) -> dict:
+    """Агентный чат с ReAct loop."""
+    try:
+        response = await controller.run(
+            query=request.query,
+            history=request.history,
+        )
+        return {
+            "answer": response.answer,
+            "sources": response.sources,
+            "steps": response.steps,
+            "total_time_sec": response.total_time_sec,
+        }
+    except Exception as e:
+        logger.exception("Agent chat error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка агента: {e}",
+        ) from e
+
+
+@app.post("/agent/chat/stream")
+async def agent_chat_stream(
+    request: ChatRequest,
+    controller: AgentControllerDep,
+):
+    """Агентный чат со streaming (SSE)."""
+    from fastapi.responses import StreamingResponse
+
+    async def generate():
+        try:
+            async for event in controller.run_stream(
+                query=request.query,
+                history=request.history,
+            ):
+                yield f"data: {event.json()}\n\n"
+        except Exception as e:
+            logger.exception("Agent stream error")
+            yield f'data: {{"type": "error", "content": "{e}"}}\n\n'
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 if __name__ == "__main__":
     uvicorn.run(
         "src.interfaces.api.app:app",
-        host=settings.server_host,
-        port=settings.server_port,
-        reload=settings.reload,
+        host="0.0.0.0",  # noqa: S104
+        port=8080,
+        reload=True,
         log_level="info",
     )
