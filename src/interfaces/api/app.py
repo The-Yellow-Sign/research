@@ -10,16 +10,20 @@ from typing import Annotated, AsyncGenerator
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response, StreamingResponse
 from opensearchpy.exceptions import ConnectionError as OpenSearchConnectionError
 from pymilvus.exceptions import MilvusException
 
-from src.application import RAGService
 from src.application.dto import ChatRequest, ChatResponse
+from src.application.services import RAGService
+from src.application.services.tool_factory import create_default_tools
 from src.application.use_cases.agent_controller import AgentController
 from src.config.logging_config import setup_logging
 from src.config.settings import settings
 from src.config.telemetry import instrument_fastapi, setup_telemetry
+from src.infrastructure.llm.client import LLMClient
 from src.infrastructure.search import SearchEngine
+from src.interfaces.api.metrics import get_metrics, get_metrics_content_type, track_request
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +39,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         search_engine = SearchEngine()
         app.state.search_engine = search_engine
 
+        logger.info("Запуск: инициализация LLMClient...")
+        llm_client = LLMClient()
+
         logger.info("Запуск: инициализация RAGService...")
-        rag_service = RAGService(search_engine=search_engine)
+        rag_service = RAGService(llm_client=llm_client, search_engine=search_engine)
         app.state.rag_service = rag_service
+
+        logger.info("Запуск: инициализация AgentController...")
+        tools = create_default_tools(search_engine=search_engine, llm_client=llm_client)
+        app.state.agent_controller = AgentController(llm=llm_client, tools=tools)
 
         logger.info("Все сервисы успешно инициализированы")
     except Exception as e:
@@ -49,12 +60,54 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("Завершение работы...")
 
+    try:
+        from pymilvus import connections
+
+        if connections.has_connection("default"):
+            connections.disconnect("default")
+            logger.info("Milvus connection closed")
+    except Exception as e:
+        logger.warning("Error closing Milvus: %s", e)
+
+    try:
+        search_engine = getattr(app.state, "search_engine", None)
+        if search_engine and hasattr(search_engine, "opensearch_client"):
+            search_engine.opensearch_client.close()
+            logger.info("OpenSearch connection closed")
+    except Exception as e:
+        logger.warning("Error closing OpenSearch: %s", e)
+
 
 app = FastAPI(
     title="DevOps RAG API",
-    description="RAG-powered база знаний DevOps",
-    version="1.0.0",
+    description="""
+## Agentic RAG API для DevOps документации
+
+### Возможности:
+- **RAG Search** — поиск по базе знаний
+- **Agent Chat** — ReAct агент с инструментами
+- **Observability** — трейсинг и метрики
+
+### Endpoints:
+- `/chat` — простой RAG чат
+- `/agent/chat` — агентный чат с reasoning
+- `/metrics` — Prometheus метрики
+""",
+    version="2.0.0",
     lifespan=lifespan,
+    openapi_tags=[
+        {"name": "health", "description": "Проверки здоровья сервиса"},
+        {"name": "rag", "description": "RAG поиск и чат"},
+        {"name": "agent", "description": "Агентный чат с ReAct"},
+        {"name": "metrics", "description": "Prometheus метрики"},
+    ],
+    contact={
+        "name": "DevOps RAG Team",
+        "email": "support@devops-rag.local",
+    },
+    license_info={
+        "name": "MIT",
+    },
 )
 
 app.add_middleware(
@@ -81,10 +134,25 @@ def get_rag_service(request: Request) -> RAGService:
 RAGServiceDep = Annotated[RAGService, Depends(get_rag_service)]
 
 
-@app.get("/health")
+@app.get("/health/live", tags=["health"])
+async def liveness_probe() -> dict[str, str]:
+    """Kubernetes liveness probe — проверяет что процесс жив."""
+    return {"status": "alive"}
+
+
+@app.get("/health", tags=["health"])
 async def health_check() -> dict[str, str]:
     """Эндпоинт проверки здоровья."""
     return {"status": "ok"}
+
+
+@app.get("/metrics", tags=["metrics"])
+async def prometheus_metrics():
+    """Prometheus метрики для мониторинга."""
+    return Response(
+        content=get_metrics(),
+        media_type=get_metrics_content_type(),
+    )
 
 
 @app.get("/health/ready")
@@ -132,6 +200,7 @@ async def readiness_probe(request: Request) -> dict[str, str | dict[str, bool]]:
 
 
 @app.post("/chat", response_model=ChatResponse)
+@track_request("chat")
 async def chat(
     request: ChatRequest,
     service: RAGServiceDep,
@@ -161,40 +230,23 @@ async def chat(
         ) from e
 
 
-def get_agent_controller(request: Request):
+def get_agent_controller(request: Request) -> AgentController:
     """Dependency для AgentController."""
-    from src.application.tools import (
-        CodeExecTool,
-        FinalAnswerTool,
-        RagSearchTool,
-        VerifyAnswerTool,
-        WebSearchTool,
-    )
-
-    search_engine = getattr(request.app.state, "search_engine", None)
-    rag_service = getattr(request.app.state, "rag_service", None)
-
-    if not search_engine or not rag_service:
+    controller = getattr(request.app.state, "agent_controller", None)
+    if controller is None:
+        logger.error("AgentController не инициализирован")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Сервисы инициализируются.",
+            detail="Агент не инициализирован.",
         )
-
-    tools = [
-        RagSearchTool(search_engine=search_engine),
-        WebSearchTool(),
-        CodeExecTool(),
-        VerifyAnswerTool(llm=rag_service.llm_client),
-        FinalAnswerTool(),
-    ]
-
-    return AgentController(tools=tools)
+    return controller
 
 
 AgentControllerDep = Annotated[AgentController, Depends(get_agent_controller)]
 
 
 @app.post("/agent/chat")
+@track_request("agent_chat")
 async def agent_chat(
     request: ChatRequest,
     controller: AgentControllerDep,
@@ -210,22 +262,30 @@ async def agent_chat(
             "sources": response.sources,
             "steps": response.steps,
             "total_time_sec": response.total_time_sec,
+            "trace": response.trace,
         }
     except Exception as e:
         logger.exception("Agent chat error")
+
+        if isinstance(e, (OpenSearchConnectionError, MilvusException)):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Временная ошибка базы знаний. Попробуйте позже.",
+            ) from e
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка агента: {e}",
+            detail="Внутренняя ошибка агента. Попробуйте позже.",
         ) from e
 
 
 @app.post("/agent/chat/stream")
+@track_request("agent_chat_stream")
 async def agent_chat_stream(
     request: ChatRequest,
     controller: AgentControllerDep,
 ):
     """Агентный чат со streaming (SSE)."""
-    from fastapi.responses import StreamingResponse
 
     async def generate():
         try:

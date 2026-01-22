@@ -14,11 +14,11 @@ from pathlib import Path
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk, scan
 
-from src.config import SOURCE_DIR
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
-OPENSEARCH_FILES_INDEX = "rag_files_registry"
+OPENSEARCH_FILES_INDEX = settings.opensearch_files_index
 
 
 def calculate_file_hash(filepath: Path) -> str:
@@ -95,7 +95,7 @@ def update_file_hashes(client: OpenSearch, files: list[Path], deleted_paths: lis
 
     for filepath in files:
         try:
-            rel_path = str(filepath.relative_to(SOURCE_DIR))
+            rel_path = str(filepath.relative_to(settings.source_dir))
         except ValueError:
             rel_path = filepath.name
 

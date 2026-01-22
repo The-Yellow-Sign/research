@@ -12,23 +12,12 @@ from src.application.tools.tool_base import (
     ToolParameterType,
     ToolResult,
 )
+from src.config import settings
 
 if TYPE_CHECKING:
     from src.domain.ports.llm import LLMPort
 
 logger = logging.getLogger(__name__)
-
-VERIFY_SYSTEM_PROMPT = """Ты — строгий верификатор ответов. Проверь, что ответ:
-1. Соответствует предоставленному контексту
-2. Не содержит выдуманной информации (галлюцинаций)
-3. Корректно цитирует источники
-
-Ответь в формате JSON:
-{
-    "valid": true/false,
-    "issues": ["список проблем, если есть"],
-    "confidence": 0.0-1.0
-}"""
 
 VERIFY_DESCRIPTION = (
     "Проверяет ответ на галлюцинации и соответствие контексту. "
@@ -79,18 +68,23 @@ class VerifyAnswerTool(BaseTool):
         """
         try:
             prompt = f"""Контекст:
-{context[:5000]}
+{context[: settings.agent_context_max_chars]}
 
 Ответ для проверки:
 {answer}
 
 Проверь ответ и верни JSON с результатом."""
 
-            model = getattr(self.llm.client, "model", "qwen/qwen3-80b")
+            from src.application.prompts.registry import PromptRegistry
+
+            registry = PromptRegistry()
+            system_prompt = registry.get("verify_system")
+
+            model = settings.models.main
             response = await self.llm.client.chat.completions.create(
                 model=model,
                 messages=[
-                    {"role": "system", "content": VERIFY_SYSTEM_PROMPT},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.0,

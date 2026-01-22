@@ -1,6 +1,6 @@
 """Сервис верификации цитат в LLM ответах.
 
-Проверяет корректность [doc:X] ссылок и удаляет галлюцинированные.
+Проверяет корректность [N] ссылок и удаляет галлюцинированные.
 """
 
 import re
@@ -26,13 +26,13 @@ class CitationReport:
 
 
 class CitationVerifier:
-    """Верификатор [doc:X] ссылок в LLM ответах.
+    """Верификатор [N] ссылок в LLM ответах.
 
-    Проверяет что все цитаты в ответе соответствуют реальным документам
-    из контекста. Может очищать ответ от невалидных ссылок.
+    Проверяет что все цитаты в ответе соответствуют реальным источникам
+    из контекста (doc + web). Может очищать ответ от невалидных ссылок.
     """
 
-    CITATION_PATTERN = re.compile(r"\[doc:(\d+)\]")
+    CITATION_PATTERN = re.compile(r"\[(\d+)\]")
 
     def _extract_prose_sentences(self, text: str) -> list[str]:
         """Извлекает реальные предложения из markdown-текста.
@@ -70,7 +70,7 @@ class CitationVerifier:
         answer: str,
         context_doc_count: int,
     ) -> CitationReport:
-        """Проверяет валидность всех [doc:X] в ответе.
+        """Проверяет валидность всех [N] в ответе.
 
         Args:
             answer: Сгенерированный LLM ответ с [doc:X] ссылками.
@@ -90,9 +90,7 @@ class CitationVerifier:
 
         sentences = self._extract_prose_sentences(answer)
         if sentences:
-            cited_sentences = sum(
-                1 for s in sentences if self.CITATION_PATTERN.search(s)
-            )
+            cited_sentences = sum(1 for s in sentences if self.CITATION_PATTERN.search(s))
             coverage = cited_sentences / len(sentences)
         else:
             coverage = 0.0
@@ -109,7 +107,7 @@ class CitationVerifier:
         answer: str,
         context_doc_count: int,
     ) -> str:
-        """Удаляет невалидные [doc:X] ссылки из ответа.
+        """Удаляет невалидные [N] ссылки из ответа.
 
         Args:
             answer: Ответ с потенциально невалидными ссылками.

@@ -10,13 +10,12 @@ import logging
 import threading
 from collections import deque
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 from src.config.settings import settings
 
 logger = logging.getLogger(__name__)
-METRICS_DIR = Path(__file__).parent.parent.parent.parent / "volumes" / "metrics"
+METRICS_DIR = settings.project_root / "volumes" / "metrics"
 
 
 class MetricsCollector:
@@ -31,6 +30,9 @@ class MetricsCollector:
         metrics.record_search("milvus", 0.15, 25, "как настроить nginx")
 
     """
+
+    FLUSH_THRESHOLD = 100
+    QUERY_PREVIEW_LIMIT = 100
 
     _instance: "MetricsCollector | None" = None
     _lock = threading.Lock()
@@ -66,10 +68,13 @@ class MetricsCollector:
             "type": metric_type,
             **data,
         }
+        should_flush = False
         with self._buffer_lock:
             self._buffer.append(record)
+            if len(self._buffer) >= self.FLUSH_THRESHOLD:
+                should_flush = True
 
-        if len(self._buffer) % 100 == 0:
+        if should_flush:
             self._async_flush()
 
     def _async_flush(self) -> None:
@@ -111,6 +116,13 @@ class MetricsCollector:
                 "error": error,
             },
         )
+        if success:
+            try:
+                from src.interfaces.api.metrics import record_llm_call
+
+                record_llm_call(model, duration_sec)
+            except Exception as e:
+                logger.debug("Failed to record LLM call metric: %s", e)
 
     def record_search(
         self,
@@ -136,7 +148,7 @@ class MetricsCollector:
                 "engine": engine,
                 "duration_sec": round(duration_sec, 4),
                 "hits_count": hits_count,
-                "query_preview": query[:100] if query else "",
+                "query_preview": query[: self.QUERY_PREVIEW_LIMIT] if query else "",
                 "has_filters": bool(filters),
             },
         )
@@ -189,7 +201,7 @@ class MetricsCollector:
                 "docs_retrieved": docs_retrieved,
                 "docs_filtered": docs_filtered,
                 "answer_type": answer_type,
-                "query_preview": query_preview[:100] if query_preview else "",
+                "query_preview": query_preview[: self.QUERY_PREVIEW_LIMIT] if query_preview else "",
             },
         )
 

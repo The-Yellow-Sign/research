@@ -21,17 +21,7 @@ from pymilvus import (
 )
 from sentence_transformers import SentenceTransformer
 
-from src.config import (
-    DOC_PREFIX,
-    MILVUS_BATCH_SIZE,
-    MILVUS_COLLECTION,
-    MILVUS_HOST,
-    MILVUS_PORT,
-    OPENSEARCH_HOST,
-    OPENSEARCH_INDEX,
-    OPENSEARCH_PARENT_INDEX,
-    OPENSEARCH_PORT,
-)
+from src.config import settings
 from src.infrastructure.persistence.file_registry import ensure_opensearch_files_index
 
 logger = logging.getLogger(__name__)
@@ -39,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def ensure_opensearch_parent_index(client: OpenSearch) -> bool:
     """Создаёт OpenSearch Parent-индекс."""
-    if client.indices.exists(index=OPENSEARCH_PARENT_INDEX):
+    if client.indices.exists(index=settings.opensearch_parent_index):
         return False
 
     index_body = {
@@ -61,14 +51,14 @@ def ensure_opensearch_parent_index(client: OpenSearch) -> bool:
         },
     }
 
-    client.indices.create(index=OPENSEARCH_PARENT_INDEX, body=index_body)
-    logger.info("Создан parent-индекс: %s", OPENSEARCH_PARENT_INDEX)
+    client.indices.create(index=settings.opensearch_parent_index, body=index_body)
+    logger.info("Создан parent-индекс: %s", settings.opensearch_parent_index)
     return True
 
 
 def ensure_opensearch_children_index(client: OpenSearch) -> bool:
     """Создаёт OpenSearch Children-индекс."""
-    if client.indices.exists(index=OPENSEARCH_INDEX):
+    if client.indices.exists(index=settings.opensearch_index):
         return False
 
     index_body = {
@@ -106,18 +96,18 @@ def ensure_opensearch_children_index(client: OpenSearch) -> bool:
         },
     }
 
-    client.indices.create(index=OPENSEARCH_INDEX, body=index_body)
-    logger.info("Создан children-индекс: %s", OPENSEARCH_INDEX)
+    client.indices.create(index=settings.opensearch_index, body=index_body)
+    logger.info("Создан children-индекс: %s", settings.opensearch_index)
     return True
 
 
 def ensure_milvus_collection(vector_dim: int) -> Collection:
     """Создаёт коллекцию Milvus."""
-    logger.info("Подключение к Milvus: %s:%s", MILVUS_HOST, MILVUS_PORT)
-    connections.connect("default", host=MILVUS_HOST, port=MILVUS_PORT)
+    logger.info("Подключение к Milvus: %s:%s", settings.milvus_host, settings.milvus_port)
+    connections.connect("default", host=settings.milvus_host, port=settings.milvus_port)
 
-    if utility.has_collection(MILVUS_COLLECTION):
-        collection = Collection(MILVUS_COLLECTION)
+    if utility.has_collection(settings.milvus_collection):
+        collection = Collection(settings.milvus_collection)
         collection.load()
         return collection
 
@@ -134,7 +124,7 @@ def ensure_milvus_collection(vector_dim: int) -> Collection:
     ]
 
     schema = CollectionSchema(fields, description="DevOps Knowledge Base - Children")
-    collection = Collection(MILVUS_COLLECTION, schema)
+    collection = Collection(settings.milvus_collection, schema)
 
     index_params = {
         "metric_type": "COSINE",
@@ -144,16 +134,18 @@ def ensure_milvus_collection(vector_dim: int) -> Collection:
     collection.create_index(field_name="vector", index_params=index_params)
     collection.load()
 
-    logger.info("Создана коллекция: %s", MILVUS_COLLECTION)
+    logger.info("Создана коллекция: %s", settings.milvus_collection)
     return collection
 
 
 def init_opensearch() -> OpenSearch:
     """Инициализирует OpenSearch-клиент и создаёт ВСЕ индексы."""
-    logger.info("Подключение к OpenSearch: %s:%s", OPENSEARCH_HOST, OPENSEARCH_PORT)
+    logger.info(
+        "Подключение к OpenSearch: %s:%s", settings.opensearch_host, settings.opensearch_port
+    )
 
     client = OpenSearch(
-        hosts=[{"host": OPENSEARCH_HOST, "port": OPENSEARCH_PORT}],
+        hosts=[{"host": settings.opensearch_host, "port": settings.opensearch_port}],
         http_compress=True,
         use_ssl=False,
         connection_pool_kwargs={"maxsize": 50},
@@ -182,7 +174,7 @@ def delete_by_source_file(
 
         try:
             os_client.delete_by_query(
-                index=OPENSEARCH_PARENT_INDEX,
+                index=settings.opensearch_parent_index,
                 body={"query": {"term": {"source_file": target_file}}},
                 ignore=[404],
             )
@@ -191,7 +183,7 @@ def delete_by_source_file(
 
         try:
             os_client.delete_by_query(
-                index=OPENSEARCH_INDEX,
+                index=settings.opensearch_index,
                 body={"query": {"term": {"source_file": target_file}}},
                 ignore=[404],
             )
@@ -199,7 +191,8 @@ def delete_by_source_file(
             logger.warning("Ошибка удаления children из OpenSearch для %s: %s", target_file, e)
 
         try:
-            expr = f'source_file == "{target_file}"'
+            safe_file = target_file.replace('"', '\\"')
+            expr = f'source_file == "{safe_file}"'
             milvus_collection.delete(expr)
         except Exception as e:
             logger.warning("Ошибка удаления из Milvus для %s: %s", target_file, e)
@@ -217,7 +210,7 @@ def index_parents_to_opensearch(
 
     actions = [
         {
-            "_index": OPENSEARCH_PARENT_INDEX,
+            "_index": settings.opensearch_parent_index,
             "_id": parent["id"],
             "_source": {
                 "id": parent["id"],
@@ -232,7 +225,7 @@ def index_parents_to_opensearch(
     ]
 
     bulk(client, actions)
-    client.indices.refresh(index=OPENSEARCH_PARENT_INDEX)
+    client.indices.refresh(index=settings.opensearch_parent_index)
     logger.info("Проиндексировано %d parents в OpenSearch", len(parents))
 
 
@@ -246,7 +239,7 @@ def index_children_to_opensearch(
 
     actions = [
         {
-            "_index": OPENSEARCH_INDEX,
+            "_index": settings.opensearch_index,
             "_source": {
                 "content": child["text"],
                 "raw_content": child["raw_content"],
@@ -261,7 +254,7 @@ def index_children_to_opensearch(
     ]
 
     bulk(client, actions)
-    client.indices.refresh(index=OPENSEARCH_INDEX)
+    client.indices.refresh(index=settings.opensearch_index)
     logger.info("Проиндексировано %d children в OpenSearch", len(children))
 
 
@@ -278,13 +271,13 @@ def index_children_to_milvus(
     if not children:
         return
 
-    total_batches = (len(children) + MILVUS_BATCH_SIZE - 1) // MILVUS_BATCH_SIZE
+    total_batches = (len(children) + settings.milvus_batch_size - 1) // settings.milvus_batch_size
     all_token_lengths: list[int] = []
     overflow_count = 0
-    frida_max_tokens = 512
+    frida_max_tokens = settings.embedding_model_max_tokens
 
-    for batch_idx, start in enumerate(range(0, len(children), MILVUS_BATCH_SIZE)):
-        batch = children[start : start + MILVUS_BATCH_SIZE]
+    for batch_idx, start in enumerate(range(0, len(children), settings.milvus_batch_size)):
+        batch = children[start : start + settings.milvus_batch_size]
 
         vector_texts = [child["vector_text"] for child in batch]
         texts = [child["text"] for child in batch]
@@ -292,7 +285,7 @@ def index_children_to_milvus(
         metas = [child["metadata"] for child in batch]
         chunk_types = [child.get("chunk_type", "text") for child in batch]
 
-        prefixed_texts = [f"{DOC_PREFIX}{vt}" for vt in vector_texts]
+        prefixed_texts = [f"{settings.doc_prefix}{vt}" for vt in vector_texts]
 
         tokenizer = model.tokenizer
         for i, text in enumerate(prefixed_texts):

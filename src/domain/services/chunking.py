@@ -145,9 +145,8 @@ def extract_path_metadata(filepath: Path, source_dir: Path | None = None) -> dic
         "path_parts": folder_parts,
     }
 
-    skip_folders = {"docs", "documentation", "wiki", "src", "lib", "pkg"}
     for part in folder_parts:
-        if part.lower() not in skip_folders:
+        if part.lower() not in _SKIP_FOLDERS:
             metadata["repo"] = part.lower().replace("_", "-")
             break
 
@@ -212,7 +211,10 @@ def process_markdown_ast(text: str) -> tuple[str, list[ExtractedBlock]]:
     for child in parsed.children:
         if isinstance(child, FencedCode):
             lang = child.lang or "text"
-            code_content = child.children[0].children if child.children else ""
+            code_content = ""
+            if child.children and child.children[0].children:
+                code_content = child.children[0].children
+
             if isinstance(code_content, list):
                 code_content = "".join(code_content)
 

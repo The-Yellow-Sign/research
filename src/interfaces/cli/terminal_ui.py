@@ -19,6 +19,8 @@ from src.application import RAGService
 from src.application.dto import ChatRequest, ChatResponse
 from src.config.logging_config import setup_logging
 from src.domain.models import SourceDoc
+from src.infrastructure.llm.client import LLMClient
+from src.infrastructure.search import SearchEngine
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,11 @@ class TerminalUI:
         """Инициализация терминального UI с сервисом и консолью."""
         self.console = Console(force_terminal=True)
         self.console.print("[dim]🔧 Загрузка моделей...[/dim]")
-        self.service = RAGService()
+
+        search_engine = SearchEngine()
+        llm_client = LLMClient()
+        self.service = RAGService(llm_client=llm_client, search_engine=search_engine)
+
         self.history: list[dict[str, str]] = []
         self.session = self._create_prompt_session()
 
@@ -44,8 +50,36 @@ class TerminalUI:
 
         return PromptSession(multiline=False, key_bindings=bindings)
 
+    def _print_footnotes(self, footnotes: list | None) -> None:
+        """Выводит footnotes с разделением на 📄 Docs и 🌐 Web."""
+        if not footnotes:
+            return
+
+        doc_footnotes = [f for f in footnotes if f.source_type == "doc"]
+        web_footnotes = [f for f in footnotes if f.source_type == "web"]
+
+        if doc_footnotes:
+            self.console.print("\n[bold cyan]📄 Документы:[/bold cyan]")
+            for fn in doc_footnotes:
+                service_tag = f" ({fn.service})" if fn.service else ""
+                self.console.print(
+                    f"  [dim][{fn.id}][/dim] [yellow]{fn.title}{service_tag}[/yellow]"
+                )
+                if fn.header_path:
+                    self.console.print(f"      [dim]↳ {fn.header_path}[/dim]")
+
+        if web_footnotes:
+            self.console.print("\n[bold magenta]🌐 Веб-источники:[/bold magenta]")
+            for fn in web_footnotes:
+                self.console.print(f"  [dim][{fn.id}][/dim] [blue]{fn.title}[/blue]")
+                if fn.url:
+                    self.console.print(f"      [dim]↳ {fn.url}[/dim]")
+                if fn.quote:
+                    quote_preview = fn.quote[:150] + "..." if len(fn.quote) > 150 else fn.quote
+                    self.console.print(f'      [dim]"{quote_preview}"[/dim]')
+
     def _print_sources_table(self, sources: list[SourceDoc]) -> None:
-        """Выводит таблицу с ранжированными источниками."""
+        """Выводит таблицу с ранжированными источниками (fallback)."""
         if not sources:
             return
 
@@ -93,7 +127,10 @@ class TerminalUI:
                     border_style="green",
                 )
             )
-            self._print_sources_table(response.sources)
+            if response.footnotes:
+                self._print_footnotes(response.footnotes)
+            else:
+                self._print_sources_table(response.sources)
 
     def _handle_command(self, command: str) -> bool:
         """Обрабатывает специальные команды."""

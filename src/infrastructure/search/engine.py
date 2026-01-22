@@ -13,17 +13,7 @@ from typing import Any
 
 from sentence_transformers import CrossEncoder, SentenceTransformer
 
-from src.config import (
-    EMBEDDING_MODEL_NAME,
-    FINAL_TOP_K,
-    MILVUS_HOST,
-    MILVUS_PORT,
-    OPENSEARCH_HOST,
-    OPENSEARCH_PORT,
-    RERANK_MAX_CHARS,
-    RERANKER_MODEL_NAME,
-    RRF_K,
-)
+from src.config import settings
 from src.infrastructure.search.milvus_client import MilvusClient
 from src.infrastructure.search.opensearch_client import OpenSearchClient
 
@@ -49,10 +39,10 @@ class SearchEngine:
         self,
         embedder: SentenceTransformer | None = None,
         reranker: CrossEncoder | None = None,
-        milvus_host: str = MILVUS_HOST,
-        milvus_port: str = MILVUS_PORT,
-        opensearch_host: str = OPENSEARCH_HOST,
-        opensearch_port: int = OPENSEARCH_PORT,
+        milvus_host: str = settings.milvus_host,
+        milvus_port: int = settings.milvus_port,
+        opensearch_host: str = settings.opensearch_host,
+        opensearch_port: int = settings.opensearch_port,
     ) -> None:
         """Инициализирует движок гибридного поиска.
 
@@ -74,15 +64,15 @@ class SearchEngine:
             self.embedder = embedder
             logger.info("Используется переданная модель эмбеддингов")
         else:
-            logger.info("Загрузка модели эмбеддингов: %s", EMBEDDING_MODEL_NAME)
-            self.embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+            logger.info("Загрузка модели эмбеддингов: %s", settings.models.embedding)
+            self.embedder = SentenceTransformer(settings.models.embedding)
 
         if reranker is not None:
             self.reranker = reranker
             logger.info("Используется переданная модель реранкера")
         else:
-            logger.info("Загрузка модели реранкера: %s", RERANKER_MODEL_NAME)
-            self.reranker = CrossEncoder(RERANKER_MODEL_NAME, max_length=512)
+            logger.info("Загрузка модели реранкера: %s", settings.models.reranker)
+            self.reranker = CrossEncoder(settings.models.reranker, max_length=512)
 
         self.milvus = MilvusClient(
             embedder=self.embedder,
@@ -166,13 +156,28 @@ class SearchEngine:
             Словарь кандидатов {parent_id: CandidateDoc}.
 
         """
-        tasks = [
-            asyncio.to_thread(self.milvus.search, query, filters),
-            asyncio.to_thread(self.opensearch.search, query, filters),
-        ]
+        milvus_hits = []
+        opensearch_hits = []
 
-        results = await asyncio.gather(*tasks)
-        milvus_hits, opensearch_hits = results[0], results[1]
+        async def _safe_milvus():
+            nonlocal milvus_hits
+            try:
+                milvus_hits = await asyncio.to_thread(self.search_milvus, query, filters)
+            except Exception as e:
+                logger.error("Milvus search failed: %s", e)
+
+        async def _safe_opensearch():
+            nonlocal opensearch_hits
+            try:
+                opensearch_hits = await asyncio.to_thread(self.search_opensearch, query, filters)
+            except Exception as e:
+                logger.error("OpenSearch search failed: %s", e)
+
+        await asyncio.gather(_safe_milvus(), _safe_opensearch())
+
+        if not milvus_hits and not opensearch_hits:
+            logger.warning("Both search backends returned zero results or failed")
+            return {}
 
         fused_scores, best_chunk_content = self._rrf_fusion(milvus_hits, opensearch_hits)
 
@@ -203,14 +208,12 @@ class SearchEngine:
         self,
         query: str,
         candidates: dict[str, dict[str, Any]],
-        top_k: int = FINAL_TOP_K,
+        top_k: int = settings.final_top_k,
         dedupe_sources: bool = False,
-        query_entities: dict[str, list[str]] | None = None,
     ) -> list[dict[str, Any]]:
         """Реранкает кандидатов с помощью Cross-Encoder модели.
 
-        Применяет ограничение RERANK_MAX_CHARS на длину текста чанка.
-        Поддерживает entity-boost для документов с совпадающими сущностями
+        Применяет ограничение RERANK_MAX_CHARS на длину текста чанка
         и опциональную дедупликацию по источникам.
 
         Args:
@@ -218,7 +221,6 @@ class SearchEngine:
             candidates: Словарь кандидатов от retrieve_candidates().
             top_k: Количество лучших результатов для возврата.
             dedupe_sources: Оставить только лучший чанк с каждого источника.
-            query_entities: Сущности из запроса для score boost.
 
         Returns:
             Отсортированный список документов с reranker_score.
@@ -231,7 +233,7 @@ class SearchEngine:
         pids = []
         for pid, doc in candidates.items():
             chunk_text = doc.get("best_chunk_content", doc.get("content", ""))
-            chunk_text = chunk_text[:RERANK_MAX_CHARS]
+            chunk_text = chunk_text[: settings.rerank_max_chars]
             rerank_inputs.append([query, chunk_text])
             pids.append(pid)
 
@@ -240,16 +242,10 @@ class SearchEngine:
         results = []
         for pid, score in zip(pids, rerank_scores, strict=True):
             doc = candidates[pid]
-            final_score = float(score)
-
-            if query_entities:
-                entity_boost = self._calculate_entity_boost(doc, query_entities)
-                final_score = final_score * (1 + entity_boost)
-
             results.append(
                 {
                     **doc,
-                    "score": final_score,
+                    "score": float(score),
                     "reranker_score": float(score),
                 }
             )
@@ -270,55 +266,6 @@ class SearchEngine:
             logger.debug("Deduped sources: %d unique from %d total", len(results), len(pids))
 
         return results[:top_k]
-
-    def _calculate_entity_boost(
-        self,
-        doc: dict[str, Any],
-        query_entities: dict[str, list[str]],
-    ) -> float:
-        """Вычисляет boost-коэффициент на основе совпадения entities.
-
-        Сравнивает keywords из Query Expansion со всеми mentions
-        в метаданных документа для повышения релевантности.
-
-        Args:
-            doc: Документ с полем mentions в метаданных.
-            query_entities: Keywords из Query Expansion variations[0].
-
-        Returns:
-            Boost factor в диапазоне 0.0-0.3 (+0% до +30% к score).
-
-        """
-        mentions = doc.get("mentions", {})
-        if not mentions and "metadata" in doc:
-            mentions = doc.get("metadata", {}).get("mentions", {})
-
-        if not mentions:
-            return 0.0
-
-        all_mention_values: set[str] = set()
-        for values in mentions.values():
-            if isinstance(values, list):
-                all_mention_values.update(str(v).lower() for v in values)
-            elif values:
-                all_mention_values.add(str(values).lower())
-
-        if not all_mention_values:
-            return 0.0
-
-        boost = 0.0
-        boost_per_match = 0.03
-        max_boost = 0.15
-
-        keywords = query_entities.get("keyword", [])
-        for kw in keywords:
-            kw_lower = kw.lower()
-            for mention in all_mention_values:
-                if kw_lower == mention or kw_lower in mention or mention in kw_lower:
-                    boost += boost_per_match
-                    break
-
-        return min(boost, max_boost)
 
     async def hybrid_search(
         self,
@@ -344,7 +291,7 @@ class SearchEngine:
         self,
         milvus_hits: list[dict[str, Any]],
         opensearch_hits: list[dict[str, Any]],
-        k: int = RRF_K,
+        k: int = settings.rrf_k,
     ) -> tuple[dict[str, float], dict[str, str]]:
         """Объединяет результаты поиска через Reciprocal Rank Fusion.
 

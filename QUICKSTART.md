@@ -1,15 +1,13 @@
 # Quickstart Guide
 
-Этот документ описывает полный процесс запуска и работы с RAG-сервисом (The Yellow Sign).
+Руководство по запуску и работе с RAG-сервисом (The Yellow Sign).
 
 ---
 
 ## Предварительные требования
 
-Перед началом убедитесь, что у вас установлены:
-
 1.  **Python 3.13+**
-2.  **[uv](https://docs.astral.sh/uv/)** (современный менеджер пакетов для Python)
+2.  **[uv](https://docs.astral.sh/uv/)** — современный менеджер пакетов:
     ```bash
     curl -LsSf https://astral.sh/uv/install.sh | sh
     ```
@@ -17,130 +15,189 @@
 
 ---
 
-## Установка и Настройка
+## Установка
 
-### 1. Клонирование и зависимости
+### 1. Зависимости
 
 ```bash
-# Установка зависимостей проекта (создаст .venv автоматически)
 uv sync
 ```
 
-### 2. Подготовка окружения
-
-Скопируйте пример конфигурации и настройте под себя:
+### 2. Конфигурация
 
 ```bash
 cp .env.example .env
 ```
 
 **Ключевые переменные в `.env`:**
--   `LLM_BASE_URL`: URL API LLM (по умолчанию `http://localhost:1234/v1` для LM Studio).
--   `LLM_API_KEY`: Ключ API (для локальных моделей можно оставить заглушку).
--   `OPENROUTER_API_KEY`: Если планируете использовать внешние API (например, для evaluation).
+
+| Переменная | Описание | По умолчанию |
+|------------|----------|--------------|
+| `OPENROUTER_BASE_URL` | URL API (OpenRouter или аналог) | `https://openrouter.ai/api/v1` |
+| `OPENROUTER_API_KEY` | Ключ API (Обязателен) | - |
+| `RAG_MODE` | Режим: `basic`, `llm_rerank`, `full` | `basic` |
 
 ---
 
 ## Инфраструктура
 
-Запустите базы данных (Milvus, OpenSearch) и вспомогательные сервисы:
-
 ```bash
+# Запуск основных сервисов
 docker compose up -d
-```
 
-Проверьте статус контейнеров (должны быть `healthy`):
-```bash
+# Запуск GUI
+docker compose --profile gui up -d
+
+# Проверка статуса
 docker compose ps
 ```
 
+### Доступные сервисы
+
 | Сервис | Порт | Описание |
 |--------|------|----------|
-| **Milvus** | `19530` | Векторная база данных |
-| **OpenSearch** | `9200` | Полнотекстовый поиск + хранилище метаданных |
+| **Milvus** | `19530` | Векторная БД |
+| **OpenSearch** | `9200` | Поисковый движок |
+| **Prometheus** | `9090` | Сбор метрик |
+| **Grafana** | `3000` | Визуализация (admin/admin) |
+| **Attu** | `8000` | GUI для Milvus (требует `--profile gui`) |
+| **OpenSearch Dashboards** | `5601` | GUI для OpenSearch (требует `--profile gui`) |
 
 ---
 
-## Индексация Документов
+## Индексация документов
 
-Перед использованием систему нужно наполнить данными. Поместите ваши `.md` файлы в директорию `devops-playbooks/` (или другую, указанную в настройках).
-
-### Инкрементальная индексация
-Добавляет только новые или изменённые файлы:
+Поместите `.md` файлы в `devops-playbooks/`, затем:
 
 ```bash
-uv run python -m src.interfaces.cli.commands.ingest
-```
+# Инкрементальная индексация (только новое)
+uv run python -m src.interfaces.cli ingest
 
-### Полная переиндексация
-Удаляет текущие коллекции и пересоздаёт индекс с нуля (Осторожно!):
-
-```bash
-uv run python -m src.interfaces.cli.commands.ingest --force
+# Полная переиндексация (очистка и загрузка)
+uv run python -m src.interfaces.cli ingest --force
 ```
 
 ---
 
-## Запуск Приложения
+## Запуск приложения
 
-### CLI Чат-бот (Terminal UI)
-Основной режим для быстрой проверки и тестов.
-
-```bash
-uv run python main.py
-```
-
-### API Сервер (FastAPI)
-REST API для интеграции с фронтендом или внешними системами.
+### CLI Chat (Terminal UI)
 
 ```bash
-uv run uvicorn src.interfaces.api.app:app --host 0.0.0.0 --port 8000 --reload
+uv run python -m src.interfaces.cli
 ```
 
--   **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
--   **Health Check**: [http://localhost:8000/health/ready](http://localhost:8000/health/ready)
+### API Server (FastAPI)
+
+```bash
+uv run uvicorn src.interfaces.api.app:app --host 0.0.0.0 --port 8000
+```
+
+
+**Основные Endpoints:**
+
+| URL | Описание |
+|-----|----------|
+| `/docs` | Swagger UI |
+| `/metrics` | Метрики для Prometheus |
+| `/health/ready` | Проверка готовности (БД + LLM) |
+| `/api/v1/search` | Поиск и ответ RAG |
 
 ---
 
-## Оценка Качества (Evaluation)
+## Мониторинг
 
-Для запуска оценки требуется настроенный `OPENROUTER_API_KEY` (если используется LLM-судья в облаке) или локальная модель-судья.
+1. В приложении реализована отдача метрик на эндпоинт `/metrics`.
+2. **Prometheus** автоматически скрейпит этот эндпоинт.
+3. В **Grafana** ([http://localhost:3000](http://localhost:3000)) настроен автоматический датасорс.
+   - Зайдите в **Explore**, выберите **Prometheus**.
+   - Попробуйте метрику `rag_requests_total`.
 
-### Запуск полного цикла оценки
+### 📊 Справочник метрик
+
+| Метрика | Тип | Описание | Labels | Buckets (сек) |
+|---------|-----|----------|--------|---------------|
+| `rag_requests_total` | Counter | Общее кол-во запросов к API | `endpoint`, `status` | - |
+| `rag_request_latency_seconds` | Histogram | Латентность HTTP запросов | `endpoint` | 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0 |
+| `rag_llm_latency_seconds` | Histogram | Латентность вызовов LLM | `model` | 0.5, 1.0, 2.0, 5.0, 10.0, 30.0 |
+| `rag_agent_steps_total` | Counter | Кол-во шагов ReAct агента | `action` | - |
+| `rag_agent_step_latency_seconds` | Histogram | Время выполнения шага агента | `action` | 0.1, 0.25, 0.5, 1.0, 2.0, 5.0 |
+| `rag_tool_calls_total` | Counter | Кол-во вызовов инструментов | `tool_name`, `status` | - |
+| `rag_active_sessions` | Gauge | Текущее кол-во активных чатов | - | - |
+| `rag_cache_size` | Gauge | Количеcтво записей в кэше | `cache_type` | - |
+
+---
+
+## Evaluation
+
 ```bash
-uv run python -m src.evaluation.run_evaluation --limit 10
+# Запуск оценки (по умолчанию Agent mode)
+uv run python -m src.evaluation.run
+
+# Опции
+uv run python -m src.evaluation.run --mode rag --sample 5
 ```
-*`--limit N`: ограничивает количество вопросов (для теста).*
 
-### Конфигурации RAG
-Вы можете менять режим работы пайплайна через переменную окружения `RAG_MODE`.
+### Опции
 
-| Режим | Описание |
-|-------|----------|
-| `basic` | Только векторный поиск (BGE-M3). Быстро, но ниже точность. |
-| `llm_rerank` | Векторный поиск + LLM Reranking. Оптимальный баланс (Default). |
-| `full` | BGE + LLM Rerank + Summarization. Максимальное качество, высокая задержка. |
+| Флаг | Описание |
+|------|----------|
+| `--mode` | `rag`, `agent`, `both` |
+| `--dataset` | Путь к JSON с тестами |
+| `--sample N` | Взять N первых вопросов |
+| `--ragas` | Включить RAGAS метрики |
+| `--resume` | Продолжить с чекпоинта |
+| `--output-dir` | Директория для результатов |
 
-Пример запуска конкретной конфигурации:
+### RAGAS Метрики
+
+| Метрика | Описание |
+|---------|----------|
+| **Faithfulness** | Соответствие ответа контексту |
+| **Context Recall** | Полнота найденного контекста |
+| **Context Precision** | Точность контекста |
+| **Agent Goal Accuracy** | Достиг ли агент цели |
+
+---
+
+## Проверка кода
+
 ```bash
-RAG_MODE=basic uv run python -m src.evaluation.run_evaluation --sample 20
-```
+# Линтинг
+uv run ruff check src/
 
-### Другие флаги
--   `--skip-judge`: Запустить только RAG генерацию, без оценки судьёй.
--   `--sample N`: Случайная выборка N вопросов.
+# Автофикс
+uv run ruff check --fix src/
+
+# Проверка импортов
+uv run python -c "from src.interfaces.api.app import app; print('OK')"
+```
 
 ---
 
 ## Troubleshooting
 
 **1. Ошибка подключения к Milvus/OpenSearch**
--   Убедитесь, что контейнеры запущены: `docker compose ps`.
--   Если порты заняты, проверьте `docker-compose.yaml`.
+```bash
+docker compose ps  # Проверить статус
+docker compose logs milvus  # Логи
+```
 
-**2. LLM не отвечает / Connection Refused**
--   Проверьте `LLM_BASE_URL` в `.env`.
--   Если используете LM Studio: убедитесь, что сервер запущен (Start Server) и порт совпадает (обычно 1234).
+**2. LLM не отвечает**
+- Проверьте `LLM_BASE_URL` в `.env`
+- Для LM Studio: убедитесь что сервер запущен на порту 1234
 
-**3. Ошибки импорта или "Module not found"**
--   Запускайте все команды через `uv run ...`, это гарантирует использование правильного виртуального окружения.
+**3. Module not found**
+- Используйте `uv run ...` для всех команд
+
+**4. Health check fails**
+```bash
+curl http://localhost:8000/health/ready
+# Смотрите какой сервис false
+```
+
+---
+
+## Архитектура
+
+См. [ARCHITECTURE.md](./ARCHITECTURE.md) для диаграмм и описания компонентов.

@@ -6,72 +6,44 @@
 import asyncio
 import json
 import logging
+import re
 import time
-from dataclasses import dataclass, field
-from enum import Enum
+import uuid
 from typing import Any, AsyncIterator
 
-from pydantic import BaseModel
+import tiktoken
+from openai import APIConnectionError, APITimeoutError, RateLimitError
+from pydantic import ValidationError
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
-from src.application.prompts.agent_prompts import get_agent_prompts
+from src.application.dto.responses import CitationMetrics
+from src.application.prompts.registry import PromptRegistry
+from src.application.services.citation_formatter import CitationFootnoteBuilder
+from src.application.services.citation_verifier import CitationVerifier
 from src.application.tools import BaseTool
-from src.config import LLM_MODEL, OPENROUTER_API_KEY, OPENROUTER_BASE_URL
+from src.application.use_cases.agent_models import (
+    AgentAction,
+    AgentDecision,
+    AgentEvent,
+    AgentEventType,
+    AgentReflection,
+    AgentResponse,
+    AgentThought,
+)
+from src.application.use_cases.agent_tracer import AgentTracer
+from src.application.use_cases.observation_manager import ObservationManager
+from src.application.use_cases.query_decomposer import QueryDecomposer
+from src.application.use_cases.tool_cache import ToolCallCache
+from src.config import settings
+from src.domain.models.response import SourceDoc
+from src.domain.ports.llm import LLMPort
 
 logger = logging.getLogger(__name__)
-
-
-class AgentEventType(str, Enum):
-    """Типы событий для streaming."""
-
-    THINKING = "thinking"
-    TOOL_CALL = "tool_call"
-    TOOL_RESULT = "tool_result"
-    ANSWER = "answer"
-    ERROR = "error"
-
-
-@dataclass
-class AgentEvent:
-    """Событие агента для streaming."""
-
-    type: AgentEventType
-    content: str = ""
-    tool: str | None = None
-    params: dict[str, Any] | None = None
-    sources: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Конвертирует событие в словарь."""
-        return {
-            "type": self.type.value,
-            "content": self.content,
-            "tool": self.tool,
-            "params": self.params,
-            "sources": self.sources,
-        }
-
-    def json(self) -> str:
-        """Сериализует событие в JSON."""
-        return json.dumps(self.to_dict(), ensure_ascii=False)
-
-
-class AgentThought(BaseModel):
-    """Структура мысли агента."""
-
-    thought: str
-    action: str
-    params: dict[str, Any] = {}
-
-
-@dataclass
-class AgentResponse:
-    """Финальный ответ агента."""
-
-    answer: str
-    sources: list[str]
-    steps: int
-    total_time_sec: float
-
 
 
 class AgentController:
@@ -80,30 +52,203 @@ class AgentController:
     Координирует цикл think → act → observe → decide.
     """
 
-    MAX_ITERATIONS = 5
-    TIMEOUT_SEC = 60.0
+    CITATION_PATTERN = re.compile(r"\[(\d+)\]")
 
     def __init__(
         self,
+        llm: LLMPort,
         tools: list[BaseTool],
-        api_key: str | None = None,
-        base_url: str | None = None,
         model: str | None = None,
     ) -> None:
+        self.llm = llm
         self.tools = {t.name: t for t in tools}
-        self.api_key = api_key or OPENROUTER_API_KEY
-        self.base_url = base_url or OPENROUTER_BASE_URL
-        self.model = model or LLM_MODEL
+        self.model = model or settings.models.main
 
-        from openai import AsyncOpenAI
+        self.model = model or settings.models.main
 
-        self.client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url,
+        # self.client removed - strict usage of LLMPort
+
+
+        self.decomposer = QueryDecomposer(self.llm)
+        self.tokenizer = (
+            tiktoken.get_encoding("cl100k_base") if "tiktoken" in globals() else None
         )
 
+        self.tracer = AgentTracer()
+        self.citation_verifier = CitationVerifier()
+        self.footnote_builder = CitationFootnoteBuilder()
+        self.prompt_registry = PromptRegistry()
+        self.tool_cache = ToolCallCache(ttl_sec=settings.tool_cache_ttl)
+
+    async def _prefetch_expanded_queries(
+        self,
+        decomposed_queries: list[str],
+        observations: ObservationManager,
+        collected_docs: list[Any],
+    ) -> None:
+        """Предварительный поиск RAG для расширенных запросов с параллельным выполнением."""
+        if not decomposed_queries:
+            return
+
+        if len(decomposed_queries) > 1:
+            parallel_obs = await self._execute_parallel_searches(decomposed_queries, collected_docs)
+            for obs in parallel_obs:
+                observations.add(obs, priority=2)
+            return
+
+        # Один запрос — обычный поиск
+        if "rag_search" not in self.tools:
+            return
+
+        eq = decomposed_queries[0]
+        tool = self.tools["rag_search"]
+        with self.tracer.trace_tool_call("rag_search", {"query": eq}) as ctx:
+            result = await tool.execute(query=eq)
+            ctx.set_result(result.data if result.success else f"Error: {result.error}")
+            if result.metadata:
+                ctx.update_metadata(**result.metadata)
+
+        if result.success:
+            data = result.data
+            if result.metadata and "documents" in result.metadata:
+                new_docs = result.metadata["documents"]
+                current_offset = len(collected_docs)
+                collected_docs.extend(new_docs)
+                data = self._reindex_citations(data, current_offset)
+
+            observations.add(
+                f"[rag_search: {eq}] {data[: settings.agent_observation_max_chars]}",
+                priority=2,
+            )
+
+    def _reindex_citations(self, text: str, offset: int) -> str:
+        """Переиндексирует [N] ссылки с заданным смещением.
+
+        Args:
+            text: Текст с цитатами вида [1], [2].
+            offset: Смещение для индексов.
+
+        Returns:
+            Текст с обновленными индексами.
+
+        """
+
+        def replacer(match: re.Match) -> str:
+            return f"[{int(match.group(1)) + offset}]"
+
+        return self.CITATION_PATTERN.sub(replacer, text)
+
+    def _build_response(
+        self,
+        answer: str,
+        sources: list[str],
+        step: int,
+        start_time: float,
+        collected_docs: list[Any] | None = None,
+    ) -> AgentResponse:
+        """Собирает финальный ответ AgentResponse с трассировкой."""
+        trace = self.tracer.end_trace()
+
+        footnotes = []
+        citation_metrics = None
+        source_docs = []
+
+        if collected_docs:
+            citation_report = self.citation_verifier.verify(answer, len(collected_docs))
+            if citation_report.invalid_citations:
+                logger.warning(
+                    "Invalid citations detected: %s (valid: 1-%d)",
+                    citation_report.invalid_citations,
+                    len(collected_docs),
+                )
+                answer = self.citation_verifier.clean_invalid_citations(answer, len(collected_docs))
+
+            for i, d in enumerate(collected_docs, 1):
+                source_type = d.get("source_type", "doc")
+                if source_type == "doc":
+                    source_docs.append(
+                        SourceDoc(
+                            doc_id=i,
+                            rank=i,
+                            score=d.get("score", 0),
+                            service=d.get("service", "unknown"),
+                            source_file=d.get("source_name") or d.get("source", "unknown"),
+                            header_path=d.get("header_path", ""),
+                            content=str(d.get("raw_content") or d.get("content", "")),
+                        )
+                    )
+
+            footnotes = self.footnote_builder.build_footnotes(answer, collected_docs)
+
+            citation_metrics = CitationMetrics(
+                coverage=citation_report.citation_coverage,
+                valid_citations=citation_report.valid_citations,
+                invalid_removed=len(citation_report.invalid_citations),
+            )
+
+        return AgentResponse(
+            answer=answer,
+            sources=sources,
+            steps=step,
+            total_time_sec=time.perf_counter() - start_time,
+            trace=trace.to_dict() if trace else None,
+            footnotes=footnotes,
+            citation_metrics=citation_metrics,
+            retrieved_docs=source_docs,
+        )
+
+    async def _execute_tool(
+        self, action: str, params: dict[str, Any], collected_docs: list[Any]
+    ) -> str:
+        """Выполняет инструмент и возвращает строку наблюдения.
+
+        Обрабатывает глобальную индексацию документов для rag_search.
+        """
+        tool = self.tools[action]
+        with self.tracer.trace_tool_call(action, params) as ctx:
+            result = await asyncio.wait_for(
+                tool.execute(**params),
+                timeout=settings.agent_timeout / settings.agent_max_iterations,
+            )
+            ctx.set_result(result.data if result.success else f"Error: {result.error}")
+
+            if result.metadata:
+                logger.info("Tool %s metadata: %s", action, result.metadata)
+                ctx.update_metadata(**result.metadata)
+            elif result.success:
+                logger.warning("Tool %s returned no metadata", action)
+
+        if result.success:
+            data = result.data
+
+            if (
+                action == AgentAction.RAG_SEARCH.value
+                and result.metadata
+                and "documents" in result.metadata
+            ):
+                new_docs = result.metadata["documents"]
+                current_offset = len(collected_docs)
+                collected_docs.extend(new_docs)
+                data = self._reindex_citations(data, current_offset)
+                logger.info("Rewrote doc indices with offset %d", current_offset)
+
+            elif (
+                action == AgentAction.WEB_SEARCH.value
+                and result.metadata
+                and "web_sources" in result.metadata
+            ):
+                new_sources = result.metadata["web_sources"]
+                current_offset = len(collected_docs)
+                collected_docs.extend(new_sources)
+                data = self._reindex_citations(data, current_offset)
+                logger.info("Rewrote web indices with offset %d", current_offset)
+
+            return f"[{action}] {data[: settings.agent_result_max_chars]}"
+
+        return f"[{action}] Ошибка: {result.error}"
+
     async def run(self, query: str, history: list[dict[str, str]] | None = None) -> AgentResponse:
-        """Выполняет ReAct loop синхронно.
+        """Выполняет ReAct loop синхронно, используя run_stream.
 
         Args:
             query: Запрос пользователя.
@@ -113,64 +258,28 @@ class AgentController:
             AgentResponse с финальным ответом.
 
         """
-        start_time = time.perf_counter()
-        observations: list[str] = []
-        sources: list[str] = []
+        final_response = None
 
-        for step in range(self.MAX_ITERATIONS):
-            try:
-                is_last_step = step == self.MAX_ITERATIONS - 1
-                thought = await self._think(
-                    query, observations, step=step + 1, force_final=is_last_step
-                )
-                logger.info("Step %d: action=%s", step + 1, thought.action)
-
-                if thought.action == "final_answer":
-                    answer = thought.params.get("answer", "")
-                    sources = thought.params.get("sources", [])
-                    return AgentResponse(
-                        answer=answer,
-                        sources=sources,
-                        steps=step + 1,
-                        total_time_sec=time.perf_counter() - start_time,
+        async for event in self.run_stream(query, history):
+            if event.type == AgentEventType.ANSWER:
+                if event.agent_response:
+                    final_response = event.agent_response
+                else:
+                    final_response = AgentResponse(
+                        answer=event.content,
+                        sources=event.sources,
+                        steps=0,
+                        total_time_sec=0.0,
                     )
 
-                if thought.action not in self.tools:
-                    observations.append(f"Ошибка: инструмент '{thought.action}' не найден")
-                    continue
+        if final_response:
+            return final_response
 
-                tool = self.tools[thought.action]
-                result = await asyncio.wait_for(
-                    tool.execute(**thought.params),
-                    timeout=self.TIMEOUT_SEC / self.MAX_ITERATIONS,
-                )
-
-                observation = f"[{thought.action}] "
-                if result.success:
-                    observation += result.data[:2000]
-                else:
-                    observation += f"Ошибка: {result.error}"
-
-                observations.append(observation)
-
-            except asyncio.TimeoutError:
-                observations.append(f"Timeout при выполнении {thought.action}")
-            except Exception as e:
-                logger.error("Agent step error: %s", e)
-                observations.append(f"Ошибка: {e}")
-
-        fallback_msg = (
-            "Не удалось найти ответ за отведённое количество шагов. "
-            "Попробуйте переформулировать запрос."
-        )
         return AgentResponse(
-            answer=fallback_msg,
-            sources=[],
-            steps=self.MAX_ITERATIONS,
-            total_time_sec=time.perf_counter() - start_time,
+            answer="Internal Error: No response generated.", sources=[], steps=0, total_time_sec=0.0
         )
 
-    async def run_stream(
+    async def run_stream(  # noqa: C901
         self,
         query: str,
         history: list[dict[str, str]] | None = None,
@@ -185,211 +294,458 @@ class AgentController:
             AgentEvent с промежуточными результатами.
 
         """
-        observations: list[str] = []
-        sources: list[str] = []
+        trace_id = str(uuid.uuid4())[:8]
+        self.tracer.start_trace(trace_id, query)
+        start_time = time.perf_counter()
 
-        for _step in range(self.MAX_ITERATIONS):
+        observations = ObservationManager(max_tokens=settings.agent_observation_max_tokens)
+        collected_docs: list[Any] = []
+        tool_call_counts: dict[str, int] = {}
+        system_error_count = 0
+        MAX_SYSTEM_ERRORS = settings.agent_max_system_errors
+        max_iterations = settings.agent_max_iterations
+
+        stream_msgs = self.prompt_registry.get("stream_messages")
+        yield AgentEvent(
+            type=AgentEventType.THINKING,
+            content=stream_msgs.get("analyzing_query", "Анализирую запрос..."),
+        )
+
+        with self.tracer.trace_tool_call("query_expansion", {"query": query}) as ctx:
+            decomposed = await self.decomposer.decompose(query, history=history)
+            ctx.set_result(str(decomposed))
+
+        if len(decomposed.expanded_queries) > 1:
+            content = stream_msgs.get("decomposed_query", "").format(
+                queries=", ".join(decomposed.expanded_queries)
+            )
+            yield AgentEvent(type=AgentEventType.THINKING, content=content)
+
+        await self._prefetch_expanded_queries(
+            decomposed.expanded_queries, observations, collected_docs
+        )
+        if collected_docs:
+            content = stream_msgs.get("prefetch_found", "").format(count=len(collected_docs))
+            yield AgentEvent(type=AgentEventType.THINKING, content=content)
+
+        for _step in range(max_iterations):
             try:
-                thought = await self._think(query, observations, step=_step + 1)
+                is_last_step = _step == max_iterations - 1
+                thought = await self._think(
+                    query, observations, step=_step + 1, force_final=is_last_step, history=history
+                )
 
                 yield AgentEvent(
                     type=AgentEventType.THINKING,
-                    content=thought.thought,
+                    content=str(thought.thought),
                 )
+                logger.info("Step %d: action=%s", _step + 1, thought.action)
 
-                if thought.action == "final_answer":
-                    answer = thought.params.get("answer", "")
+                if thought.action == AgentAction.FINAL_ANSWER:
+                    candidate_answer = str(thought.params.get("answer", ""))
+
+                    hallucination_valid = await self._validate_answer_hallucinations(
+                        candidate_answer, collected_docs, observations, stream_msgs
+                    )
+                    if not hallucination_valid:
+                        continue
+
                     sources = thought.params.get("sources", [])
+
+                    # Phase 3: Self-Reflection (Conditional)
+                    should_reflect = settings.agent_reflection_enabled and (
+                        len(collected_docs) >= settings.agent_reflection_min_sources
+                        or _step >= settings.agent_reflection_min_steps
+                    )
+
+                    if should_reflect:
+                        approved, feedback = await self._reflect_on_answer(
+                            query, candidate_answer, observations.as_list()
+                        )
+                    else:
+                        approved, feedback = True, ""
+
+                    if not approved and _step < max_iterations - 1:
+                        observations.add(f"РЕФЛЕКСИЯ: {feedback}", priority=3)
+                        yield AgentEvent(
+                            type=AgentEventType.THINKING, content=f"Рефлексия: {feedback}"
+                        )
+                        continue
+
+                    agent_response = self._build_response(
+                        candidate_answer, sources, _step + 1, start_time, collected_docs
+                    )
+
                     yield AgentEvent(
                         type=AgentEventType.ANSWER,
-                        content=answer,
+                        content=candidate_answer,
                         sources=sources,
+                        agent_response=agent_response,
                     )
                     return
 
-                yield AgentEvent(
-                    type=AgentEventType.TOOL_CALL,
-                    tool=thought.action,
-                    params=thought.params,
-                )
+                if thought.action == AgentAction.CLARIFYING_QUESTION:
+                    question = str(thought.params.get("question", "Уточните ваш запрос"))
+                    agent_response = self._build_response(
+                        f"❓ {question}", [], _step + 1, start_time, collected_docs
+                    )
+                    yield AgentEvent(
+                        type=AgentEventType.ANSWER,
+                        content=f"❓ {question}",
+                        sources=[],
+                        agent_response=agent_response,
+                    )
+                    return
 
-                if thought.action not in self.tools:
+                if not thought.action:
+                    error_thoughts = self.prompt_registry.get("error_thoughts")
+                    err_msg = error_thoughts.get("empty_action", "")
+                    observations.add(err_msg, priority=3)
                     yield AgentEvent(
                         type=AgentEventType.ERROR,
-                        content=f"Инструмент '{thought.action}' не найден",
+                        content=stream_msgs.get("retry_on_error", "").format(
+                            error_type="empty_action"
+                        ),
                     )
                     continue
 
-                tool = self.tools[thought.action]
-                result = await tool.execute(**thought.params)
+                if thought.action in (AgentAction.TOKEN_LIMIT, AgentAction.INVALID_SCHEMA):
+                    system_error_count += 1
+                    if system_error_count >= MAX_SYSTEM_ERRORS:
+                        logger.error(
+                            "Too many system errors (%d), aborting loop", system_error_count
+                        )
+                        break
+
+                    observations.add(
+                        f"СИСТЕМА: Ошибка ({thought.action.value}). Пробую еще раз.", priority=3
+                    )
+                    yield AgentEvent(
+                        type=AgentEventType.ERROR,
+                        content=stream_msgs.get("retry_on_error", "").format(
+                            error_type=thought.action.value
+                        ),
+                    )
+                    continue
+
+                action_val = (
+                    thought.action.value if hasattr(thought.action, "value") else thought.action
+                )
+                if action_val not in self.tools:
+                    error_thoughts = self.prompt_registry.get("error_thoughts")
+                    err_msg = error_thoughts.get("tool_not_found", "").format(
+                        tool_name=action_val,
+                        available_tools=list(self.tools.keys()),
+                    )
+                    observations.add(err_msg, priority=3)
+                    yield AgentEvent(
+                        type=AgentEventType.ERROR,
+                        content=f"Инструмент '{action_val}' не найден.",
+                    )
+                    continue
+
+                tool_call_counts[action_val] = tool_call_counts.get(action_val, 0) + 1
+                if tool_call_counts[action_val] > 5:
+                    error_thoughts = self.prompt_registry.get("error_thoughts")
+                    err_msg = error_thoughts.get("tool_limit_exceeded", "").format(
+                        tool_name=action_val, count=5
+                    )
+                    observations.add(err_msg, priority=3)
+                    yield AgentEvent(
+                        type=AgentEventType.ERROR,
+                        content=f"Слишком много вызовов {action_val}.",
+                    )
+                    continue
 
                 yield AgentEvent(
-                    type=AgentEventType.TOOL_RESULT,
-                    content=result.data[:1000] if result.success else f"Ошибка: {result.error}",
+                    type=AgentEventType.TOOL_CALL,
+                    tool=action_val,
+                    params=thought.params,
                 )
 
-                observation = f"[{thought.action}] "
-                if result.success:
-                    observation += result.data[:2000]
-                else:
-                    observation += f"Ошибка: {result.error}"
+                # Check cache first
+                cached = self.tool_cache.get(action_val, thought.params)
 
-                observations.append(observation)
+                if cached is not None:
+                    result, cached_docs = cached
+                    collected_docs.extend(cached_docs)
+                    logger.info("Using cached result for %s", action_val)
+                else:
+                    docs_before = len(collected_docs)
+                    result = await self._execute_tool(action_val, thought.params, collected_docs)
+                    new_docs = collected_docs[docs_before:]
+                    if "Ошибка:" not in result:
+                        self.tool_cache.set(action_val, thought.params, (result, new_docs))
+
+                yield AgentEvent(type=AgentEventType.TOOL_RESULT, content=result, tool=action_val)
+
+                if "Ошибка:" in result:
+                    error_hints = self.prompt_registry.get("error_recovery") or {}
+                    hint = error_hints.get("tool_error", "")
+                    observations.add(f"{result}\n{hint}", priority=3)
+                else:
+                    observations.add(result, priority=2)
 
             except Exception as e:
                 logger.error("Agent stream error: %s", e)
+                observations.add(f"Ошибка: {e}", priority=3)
                 yield AgentEvent(
                     type=AgentEventType.ERROR,
                     content=str(e),
                 )
 
-        yield AgentEvent(
-            type=AgentEventType.ANSWER,
-            content="Не удалось найти ответ за отведённое количество шагов.",
-            sources=[],
+        fallback_msg = (
+            "Не удалось найти ответ за отведённое количество шагов. "
+            "Попробуйте переформулировать запрос."
         )
 
-    async def _think(
+        fallback_response = AgentResponse(
+            answer=fallback_msg,
+            sources=[],
+            steps=max_iterations,
+            total_time_sec=time.perf_counter() - start_time,
+            trace=self.tracer.end_trace().to_dict(),
+        )
+
+        yield AgentEvent(
+            type=AgentEventType.ANSWER,
+            content=fallback_msg,
+            sources=[],
+            agent_response=fallback_response,
+        )
+
+    async def _validate_answer_hallucinations(
+        self,
+        answer: str,
+        collected_docs: list[Any],
+        observations: ObservationManager,
+        stream_msgs: dict[str, str],
+    ) -> bool:
+        """Проверяет ответ на галлюцинации через VerifyAnswerTool."""
+        if not collected_docs:
+            return True
+
+        verifier_tool = self.tools.get("verify_answer")
+        if not verifier_tool:
+            return True
+
+        context_text = "\n\n".join([str(d) for d in collected_docs])
+        verification_result = await verifier_tool.execute(answer=answer, context=context_text)
+
+        if verification_result.success:
+            ver_data = verification_result.data
+            try:
+                parsed = json.loads(ver_data)
+                is_valid = parsed.get("valid", True) if isinstance(parsed, dict) else True
+            except json.JSONDecodeError:
+                is_valid = "valid: false" not in ver_data.lower()
+
+                if not is_valid:
+                    logger.warning("Верификация не пройдена (Stream).")
+                    fail_msg = (
+                        "КРИТИЧЕСКОЕ СИСТЕМНОЕ НАБЛЮДЕНИЕ: Твой ответ не прошёл верификацию.\n"
+                        f"Отчёт проверки: {ver_data}\n"
+                        "Ты ОБЯЗАН исправить галлюцинации и попробовать снова."
+                    )
+                    observations.add(fail_msg, priority=3)
+                    return False
+
+        return True
+
+    async def _reflect_on_answer(
         self,
         query: str,
+        candidate_answer: str,
         observations: list[str],
+    ) -> tuple[bool, str]:
+        """Рефлексия: проверка качества ответа."""
+        reflection_prompt_tpl = self.prompt_registry.get("reflection_prompt")
+        if not reflection_prompt_tpl:
+            return True, candidate_answer
+
+        prompt = reflection_prompt_tpl.format(
+            query=query,
+            candidate_answer=candidate_answer,
+            observations="\n".join(observations[-3:]),
+        )
+
+        try:
+            reflection = await self.llm.generate_structured(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a senior DevOps engineer reviewing the assistant's "
+                            "answer for accuracy and completeness."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_model=AgentReflection,
+                max_tokens=settings.agent_max_tokens,
+            )
+
+            if reflection.is_approved:
+                return True, candidate_answer
+
+            return False, reflection.critique
+        except Exception as e:
+            logger.warning("Reflection failed: %s", e)
+            return True, candidate_answer
+
+    def _build_dynamic_hints(self, observations: ObservationManager) -> str:
+        """Генерирует динамические подсказки на основе истории."""
+        hints = []
+
+        empty_count = observations.count_pattern("результатов: 0")
+        if empty_count >= 2:
+            hints.append(
+                "⚠️ Предыдущие поиски в rag_search были пустыми. "
+                "Попробуй web_search или переформулируй запрос."
+            )
+
+        error_count = observations.count_pattern("ОШИБКА:")
+        if error_count >= 1:
+            hints.append("⚠️ Были ошибки инструментов. Проверь параметры.")
+
+        if not hints:
+            return ""
+
+        return "\n".join(hints)
+
+    async def _execute_parallel_searches(
+        self,
+        queries: list[str],
+        collected_docs: list[Any],
+    ) -> list[str]:
+        """Параллельное выполнение нескольких RAG-поисков."""
+        rag_tool = self.tools.get(AgentAction.RAG_SEARCH.value)
+        if not rag_tool:
+            return []
+
+        tasks = [rag_tool.execute(query=q) for q in queries]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        new_observations = []
+        for q, r in zip(queries, results, strict=True):
+            if isinstance(r, Exception):
+                new_observations.append(f"[search:{q}] Ошибка: {r}")
+            else:
+                new_observations.append(f"[search:{q}] {r.data[:500]}...")
+                if hasattr(r, "docs") and r.docs:
+                    collected_docs.extend(r.docs)
+
+        return new_observations
+
+    async def _think(  # noqa: C901
+        self,
+        query: str,
+        observations: ObservationManager,
         step: int = 1,
         force_final: bool = False,
+        history: list[dict[str, str]] | None = None,
     ) -> AgentThought:
-        """Генерирует следующее действие через LLM.
+        """Генерирует следующее действие через LLM используя Structured Output.
 
         Args:
             query: Исходный запрос.
-            observations: История наблюдений.
+            observations: Менеджер наблюдений.
             step: Текущий номер шага.
             force_final: Принудительно сгенерировать final_answer.
+            history: История диалога.
 
         Returns:
             AgentThought с action и params.
 
         """
-        if force_final and observations:
-            logger.info("Forcing final_answer on last step")
-            context = "\n".join(observations[-3:])[:4000]
-            return AgentThought(
-                thought="Последний шаг, формирую ответ из собранной информации",
-                action="final_answer",
-                params={
-                    "answer": f"На основе найденной информации:\n\n{context}",
-                    "sources": [],
-                },
-            )
+        obs_text = observations.get_context() if observations.observations else "Пока нет действий."
 
-        obs_text = "\n".join(observations) if observations else "Пока нет действий."
+        # Add dynamic hints
+        dynamic_hints = self._build_dynamic_hints(observations)
+        if dynamic_hints:
+            obs_text += f"\n\n## Динамические подсказки\n{dynamic_hints}"
 
-        prompts = get_agent_prompts()
-        urgency_hint = prompts.get_urgency_hint(step, threshold=3)
+        if force_final:
+            hints = self.prompt_registry.get("urgency_hints")
+            urgency_hint = hints.get("force_final", hints.get("late"))
+        else:
+            hints = self.prompt_registry.get("urgency_hints")
+            urgency_hint = hints.get("late") if step >= 3 else hints.get("early")
 
-        prompt = prompts.think_template.format(
+        history_context = ""
+        if history:
+            history_lines = []
+            for msg in history[-4:]:
+                role = "Пользователь" if msg.get("role") == "user" else "Ассистент"
+                content = msg.get("content", "")[:300]
+                history_lines.append(f"{role}: {content}")
+            history_context = "\n## Предыдущий контекст диалога\n" + "\n".join(history_lines)
+
+        prompt = self.prompt_registry.format(
+            "agent_think",
             query=query,
             observations=obs_text,
             step=step,
-            max_steps=self.MAX_ITERATIONS,
+            max_steps=settings.agent_max_iterations,
             urgency_hint=urgency_hint,
         )
 
-        response = await self.client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": prompts.system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.0,
-            max_tokens=1500,
-            response_format={"type": "json_object"},
+        if history_context:
+            prompt = history_context + "\n\n" + prompt
+
+        @retry(
+            wait=wait_exponential(
+                multiplier=settings.llm_retry_base_delay, max=settings.llm_retry_max_delay
+            ),
+            stop=stop_after_attempt(settings.llm_retry_attempts),
+            retry=retry_if_exception_type(
+                (APIConnectionError, RateLimitError, APITimeoutError)
+            ),
+            reraise=True,
         )
-
-        content = response.choices[0].message.content or "{}"
-        logger.info("Raw LLM response (first 500 chars):\n%s", content[:500])
-
-        return self._parse_llm_response(content, observations, query)
-
-    def _parse_llm_response(
-        self,
-        content: str,
-        observations: list[str],
-        query: str,
-    ) -> AgentThought:
-        """Парсит ответ LLM и возвращает AgentThought.
-
-        Args:
-            content: Сырой ответ LLM.
-            observations: История наблюдений.
-            query: Исходный запрос.
-
-        Returns:
-            AgentThought с action и params.
-
-        """
-        import re
+        async def _call_llm_with_retry():
+            return await self.llm.generate_structured(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": self.prompt_registry.format(
+                            "agent_system",
+                            few_shot_examples=self.prompt_registry.get("few_shot_examples")
+                        )
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                response_model=AgentDecision,
+                max_tokens=settings.agent_max_tokens,
+                temperature=0.0
+            )
 
         try:
-            content = content.strip()
-            if content.startswith("```"):
-                content = content.split("```")[1]
-                if content.startswith("json"):
-                    content = content[4:]
+            decision = await _call_llm_with_retry()
+            # result is already the parsed model, no need to access choices[0].message.parsed
 
-            if "<think>" in content:
-                think_match = re.search(r"</think>\s*(.*)", content, re.DOTALL)
-                if think_match:
-                    content = think_match.group(1).strip()
-                    logger.info("After removing <think>: %s", content[:300])
-
-            data = json.loads(content)
-            action = data.get("action")
-            params = data.get("params", {})
-            logger.info("Parsed action=%s, params=%s", action, str(params)[:200])
-
-            if not action and observations:
-                return self._build_fallback_thought(observations)
+            if not decision:
+                raise ValueError("Received empty decision from LLM")
 
             return AgentThought(
-                thought=data.get("thought", ""),
-                action=action or "final_answer",
-                params=params,
+                thought=decision.thought, action=decision.tool_name, params=decision.params
             )
-        except json.JSONDecodeError as e:
-            logger.warning("Failed to parse: %s\nContent: %s", e, content[:500])
-            return self._handle_parse_error(content, observations, query)
 
-    def _build_fallback_thought(self, observations: list[str]) -> AgentThought:
-        """Создаёт fallback ответ из наблюдений."""
-        context = "\n".join(observations[-3:])[:4000]
-        return AgentThought(
-            thought="Генерирую ответ из собранных данных",
-            action="final_answer",
-            params={"answer": f"На основе информации:\n\n{context}", "sources": []},
-        )
-
-    def _handle_parse_error(
-        self,
-        content: str,
-        observations: list[str],
-        query: str,
-    ) -> AgentThought:
-        """Обрабатывает ошибку парсинга JSON."""
-        import re
-
-        if '"answer":' in content:
-            match = re.search(r'"answer":\s*"([^"]*)', content)
-            if match:
+        except ValidationError as e:
+            logger.warning("LLM produced invalid JSON schema: %s", e)
+            return AgentThought(
+                thought=self.prompt_registry.get("error_thoughts")
+                .get("schema_validation", "")
+                .format(error=str(e)),
+                action=AgentAction.INVALID_SCHEMA,
+                params={},
+            )
+        except Exception as e:
+            if "LengthFinishReasonError" in str(type(e)):
+                logger.warning("LLM hit token limit: %s", e)
                 return AgentThought(
-                    thought="Извлечён частичный ответ",
-                    action="final_answer",
-                    params={"answer": match.group(1), "sources": []},
+                    thought=self.prompt_registry.get("error_thoughts").get("token_limit", ""),
+                    action=AgentAction.TOKEN_LIMIT,
+                    params={},
                 )
-
-        if observations:
-            return self._build_fallback_thought(observations)
-
-        return AgentThought(
-            thought="Не удалось распарсить, пробую поиск",
-            action="rag_search",
-            params={"query": query},
-        )
+            raise e

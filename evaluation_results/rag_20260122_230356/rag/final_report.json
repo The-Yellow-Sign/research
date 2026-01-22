@@ -1,0 +1,1063 @@
+{
+  "metadata": {
+    "timestamp": "2026-01-22T23:05:21.011895",
+    "mode": "rag"
+  },
+  "summary": {
+    "total_questions": 10,
+    "successful": 10,
+    "failed": 0,
+    "avg_context_recall": 0.0,
+    "avg_context_precision": 0.0,
+    "avg_faithfulness": 0.0,
+    "avg_answer_relevancy": 0.0,
+    "avg_rag_latency_sec": 6.979993450106122,
+    "avg_query_expansion_sec": 1.4319215127150529,
+    "avg_retrieve_sec": 0.608793037594296,
+    "avg_rerank_sec": 2.8622359875938854,
+    "avg_llm_analysis_sec": 0.0016197831137105823,
+    "avg_llm_generation_sec": 2.0754231290891765
+  },
+  "by_category": {},
+  "by_difficulty": {},
+  "results": [
+    {
+      "id": "q_001",
+      "question": "Какой HTTP код ошибки возвращает Nginx при проблеме 502 Bad Gateway и что это означает для upstream?",
+      "expected_answer": "Nginx возвращает код 502 Bad Gateway. Это означает, что Nginx, действуя как шлюз или прокси, получил недопустимый ответ от вышестоящего сервера (upstream). В логах это часто коррелирует с ошибками 'Connection refused' (111) или 'upstream timed out', что указывает на то, что бэкенд выключен, перегружен или недоступен по сети.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "**Диагноз:**  \nОшибка 502 Bad Gateway означает, что upstream сервис \"лежит\" или не успевает отвечать [1].  \n\n**Решение:**  \n1. Проверьте, запущен ли upstream сервис:  \n```bash\nsudo systemctl status app-backend\n```  \n[7]  \n\n2. Если upstream не слушает на нужном порту, проверьте, на каком адресе и порту он слушает:  \n```bash\nsudo lsof -i -P -n | grep LISTEN | grep -E 'node|python|java'\n```  \n[7]  \n\n3. Проверьте, что upstream сервер доступен по указанному адресу:  \n```bash\ncurl -v http://127.0.0.1:8080/health\n```  \n[8]  \n\n4. Если в логах Nginx присутствует `connect() failed (111: Connection refused)`, это означает, что upstream сервис не запущен или не слушает на указанном адресе [4].  \n\n5. Если в логах Nginx присутствует `upstream timed out (110: Connection timed out)`, это означает, что upstream обрабатывает запрос слишком долго [4].  \n\n6. Если в логах Nginx присутствует `upstream prematurely closed connection while reading response header from upstream`, это означает, что upstream закрыл соединение до отправки полного ответа [6].  \n\n**Важные замечания:**  \n- Ошибка 502 может возникать при неправильной конфигурации upstream в Nginx, например, если upstream указан как `127.0.0.1:8080`, а приложение слушает только на `0.0.0.0:8080` [7].  \n- Если upstream сервер временно отключен, Nginx может выводить предупреждение: `upstream server temporarily disabled while connecting to upstream` [3].  \n- Некоторые запросы могут проходить успешно (200 OK), другие падать с 502 — проблема непостоянная [2].",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "quick-notes.md",
+            "content": "Если вы видите 502 Bad Gateway, скорее всего ваш upstream сервис \"лежит\" или не успевает отвечать.",
+            "score": 0.995572566986084
+          },
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "Пользователи получают белую страницу с ошибкой \"502 Bad Gateway\" при попытке зайти на сайт или API. В браузере отображается стандартная страница ошибки Nginx. Время отклика составляет несколько секунд перед появлением ошибки. Мониторинг показывает рост числа 5xx ошибок. Некоторые запросы проходят успешно (200 OK), другие падают с 502 – проблема непостоянная. Load balancer health checks могут показывать, что бэкенды down.",
+            "score": 0.8670628070831299
+          },
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "```text\n2025/11/28 15:12:47 [error] 18293#18293: *47821 connect() failed (111: Connection refused) while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\", request_id: \"a7f3c2e9b8d1\"\n2025/11/28 15:12:47 [warn] 18293#18293: *47821 upstream server temporarily disabled while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\"\n203.0.113.42 - - [28/Nov/2025:15:12:47 +0300] \"POST /api/v1/payments HTTP/1.1\" 502 157 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" rt=0.003 uct=\"-\" uht=\"-\" urt=\"-\"\n```  \n```text\n2025/11/28 15:15:33 [error] 18294#18294: *48912 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.15:3000/dashboard/analytics\", host: \"www.example.com\", referrer: \"https://www.example.com/dashboard\"\n2025/11/28 15:15:33 [error] 18294#18294: *48912 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.16:3000/dashboard/analytics\", host: \"www.example.com\"\n198.51.100.73 - - [28/Nov/2025:15:15:33 +0300] \"GET /dashboard/analytics HTTP/1.1\" 502 559 \"https://www.example.com/dashboard\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)\" rt=60.003 uct=\"60.000\" uht=\"60.000\" urt=\"60.003\"\nX-Request-ID: f8c2a91d-4e3b-4f2c-9d1e-7a8c3b2e1f90\nX-Upstream-Status: error\nX-Upstream-Response-Time: 60.003\n```  \n```text\n2025/11/28 15:18:22 [crit] 18295#18295: *49847 open() \"/var/lib/nginx/proxy/3/47/0000000473\" failed (13: Permission denied) while reading upstream, client: 192.0.2.119, server: cdn.example.com, request: \"GET /assets/bundle.js HTTP/1.1\", upstream: \"http://10.0.3.21:9000/assets/bundle.js\", host: \"cdn.example.com\"\n2025/11/28 15:18:22 [error] 18295#18295: *49847 writev() failed (32: Broken pipe) while sending request to upstream, client: 192.0.2.119, server: cdn.example.com, request: \"GET /assets/bundle.js HTTP/1.1\", upstream: \"http://10.0.3.21:9000/assets/bundle.js\", host: \"cdn.example.com\"\n192.0.2.119 - - [28/Nov/2025:15:18:22 +0300] \"GET /assets/bundle.js HTTP/1.1\" 502 166 \"-\" \"curl/7.68.0\" rt=0.127 uct=\"0.001\" uht=\"0.125\" urt=\"0.001\"\n[error] 18295#18295: *49847 upstream prematurely closed connection while reading response header from upstream\nPID: 18295\nWorker: 2\nConnection: 49847\nUpstream: 10.0.3.21:9000\n```",
+            "score": 0.550799548625946
+          },
+          {
+            "source": "nginx-emergency.md",
+            "content": "Логи находятся по стандартному пути `/var/log/nginx/error.log`.  \n| Ошибка | Причина | Решение |\n| :--- | :--- | :--- |\n| (111: Connection refused) | Апстрим (backend) лежит | Проверьте backend сервис |\n| (110: Connection timed out) | Тяжелый запрос или firewall | Увеличьте proxy_read_timeout |",
+            "score": 0.3946249783039093
+          },
+          {
+            "source": "sre-engineering-handbook.md",
+            "content": "Для каждого критического алерта ДОЛЖЕН существовать ранбук.\n- [Пример: Ошибки 502 в Nginx](03-nginx-502-bad-gateway.md)\n- [Пример: Репликация Postgres](11-postgresql-replication-guide.md)  \n---",
+            "score": 0.27971121668815613
+          },
+          {
+            "source": "quick-notes.md",
+            "content": "Check the error log for `upstream prematurely closed connection`:\n```bash\ntail -f /var/log/nginx/error.log | grep upstream\n```",
+            "score": 0.21904557943344116
+          },
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "**Шаг 1: Быстрая проверка upstream доступности**  \n```bash\n# Если upstream service не запущен, запустите его\nsudo systemctl status app-backend\nsudo systemctl start app-backend\nsudo systemctl enable app-backend\n\n# Для PM2 (Node.js)\npm2 list\npm2 restart app-api\n\n# Для Gunicorn (Python)\nsudo systemctl restart gunicorn\n# или\npkill -HUP gunicorn\n\n# Для Java приложений\nsudo systemctl restart tomcat\n# или проверьте через jps\njps -l\n```  \n**Шаг 2: Проверка и исправление Nginx конфигурации**  \nПроверьте upstream блок в конфигурации:  \n```bash\n# Найдите конфигурацию upstream\ngrep -r \"upstream\" /etc/nginx/sites-enabled/\ncat /etc/nginx/sites-enabled/default\n```  \nТипичные проблемы в конфигурации:  \n```nginx\n# Неправильно (если upstream на localhost)\nupstream backend {\nserver 127.0.0.1:8080;\n}\n\n# Проверьте таймауты – возможно они слишком маленькие\nproxy_connect_timeout 5s;   # Слишком мало для медленных апп\nproxy_read_timeout 10s;     # Увеличьте\n\n# Правильная конфигурация с резервированием\nupstream backend {\nserver 10.0.2.15:8080 max_fails=3 fail_timeout=30s;\nserver 10.0.2.16:8080 max_fails=3 fail_timeout=30s backup;\nkeepalive 32;\n}\n\nserver {\nlisten 80;\nserver_name api.example.com;\n\nlocation / {\nproxy_pass http://backend;\nproxy_http_version 1.1;\nproxy_set_header Connection \"\";\nproxy_set_header Host $host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n\n# Увеличьте таймауты\nproxy_connect_timeout 60s;\nproxy_send_timeout 60s;\nproxy_read_timeout 60s;\n\n# Буферизация\nproxy_buffering on;\nproxy_buffer_size 4k;\nproxy_buffers 8 4k;\nproxy_busy_buffers_size 8k;\n\n# Retry\nproxy_next_upstream error timeout http_502 http_503 http_504;\nproxy_next_upstream_tries 2;\n}\n}\n```  \nПримените изменения:  \n```bash\n# Проверьте синтаксис\nsudo nginx -t\n\n# Перезагрузите конфигурацию без downtime\nsudo nginx -s reload\n# или\nsudo systemctl reload nginx\n```  \n**Шаг 3: Решение проблемы с Connection Refused**  \nЕсли upstream не слушает на нужном порту:  \n```bash\n# Найдите, на каком порту слушает приложение\nsudo lsof -i -P -n | grep LISTEN | grep -E 'node|python|java'\n\n# Проверьте bind address (0.0.0.0 vs 127.0.0.1)\n# Если приложение слушает только на 127.0.0.1, а nginx пытается подключиться по 10.x.x.x – будет ошибка\n\n# Исправьте конфигурацию приложения чтобы слушать на 0.0.0.0\n# Например для Node.js/Express:\n# app.listen(8080, '0.0.0.0');\n\n# Для Flask/Gunicorn:\ngunicorn -w 4 -b 0.0.0.0:8080 app:app\n\n# Проверьте файрвол\nsudo ufw status\nsudo iptables -L -n | grep 8080\n\n# Разрешите порт если нужно\nsudo ufw allow 8080/tcp\n```  \n**Шаг 4: Решение проблемы с Timeouts**  \nЕсли upstream обрабатывает запросы слишком долго:  \n```bash\n# Увеличьте таймауты в nginx.conf или в location блоке\nsudo nano /etc/nginx/nginx.conf\n```  \nДобавьте в http блок или location:  \n```nginx\nproxy_connect_timeout 300s;\nproxy_send_timeout 300s;\nproxy_read_timeout 300s;\nsend_timeout 300s;\n```  \nОптимизируйте backend приложение:  \n```bash\n# Проверьте slow queries (для DB-heavy приложений)\n# PostgreSQL:\npsql -c \"SELECT pid, state, query_start, query FROM pg_stat_activity WHERE state != 'idle' ORDER BY query_start LIMIT 10;\"\n\n# MySQL:\nmysql -e \"SHOW FULL PROCESSLIST;\"\n\n# Добавьте индексы, оптимизируйте запросы\n# Масштабируйте horizontally – добавьте больше upstream серверов\n```  \n**Шаг 5: Исправление прав доступа на proxy cache**  \nЕсли ошибка связана с правами:  \n```bash\n# Проверьте владельца директорий\nls -la /var/lib/nginx/\nls -la /var/lib/nginx/proxy/\n\n# Исправьте права\nsudo chown -R www-data:www-data /var/lib/nginx/proxy/\nsudo chmod -R 755 /var/lib/nginx/proxy/\n\n# Или очистите cache\nsudo rm -rf /var/lib/nginx/proxy/*\nsudo systemctl restart nginx\n```  \n**Шаг 6: Мониторинг и алертинг**  \n```bash\n# Настройте мониторинг upstream в nginx\n# Используйте nginx-module-vts или commercial nginx plus\n\n# Добавьте healthcheck скрипт\ncat > /usr/local/bin/nginx_upstream_check.sh <<'EOF'\n#!/bin/bash\nSTATUS=$(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8080/health)\nif [ \"$STATUS\" != \"200\" ]; then\necho \"Upstream is down! Status: $STATUS\"\nsystemctl restart app-backend\ncurl -X POST https://hooks.slack.com/services/YOUR/WEBHOOK \\\n-d '{\"text\":\"Upstream backend restarted due to health check failure\"}'\nfi\nEOF\n\nchmod +x /usr/local/bin/nginx_upstream_check.sh\necho \"*/2 * * * * /usr/local/bin/nginx_upstream_check.sh\" | crontab -\n\n# Настройте Prometheus nginx-exporter\n# https://github.com/nginxinc/nginx-prometheus-exporter\n```  \n**Шаг 7: Постоянное решение**  \n- Используйте connection pooling и keepalive\n- Настройте graceful shutdown для backend приложений\n- Добавьте health check endpoints\n- Используйте load balancing с несколькими upstream серверами\n- Включите circuit breaker pattern на уровне приложения\n- Настройте auto-scaling для backend (k8s HPA, AWS ASG)",
+            "score": 0.13985256850719452
+          },
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "Проверьте статус Nginx и upstream серверов:  \n```bash\n# Проверьте, запущен ли Nginx\nsudo systemctl status nginx\nsudo nginx -t  # Проверка конфигурации\n\n# Посмотрите error log в реальном времени\nsudo tail -f /var/log/nginx/error.log\n\n# Проверьте access log для паттернов\nsudo tail -f /var/log/nginx/access.log | grep \" 502 \"\n```  \n```bash\n# Проверьте доступность upstream серверов\ncurl -v http://127.0.0.1:8080/health\ncurl -v http://10.0.2.15:3000/health\n\n# Проверьте, что порты слушаются\nsudo netstat -tlnp | grep -E ':8080|:3000|:9000'\n# или\nsudo ss -tlnp | grep -E ':8080|:3000'\n\n# Проверьте connectivity\ntelnet 127.0.0.1 8080\nnc -zv 10.0.2.15 3000\n```  \n```bash\n# Проверьте процессы backend приложений\nps aux | grep -E 'node|python|java|gunicorn|uvicorn' | grep -v grep\n\n# Проверьте load average и ресурсы\nuptime\ntop -bn1 | head -20\nfree -h\n\n# Проверьте количество соединений к upstream\nnetstat -an | grep :8080 | wc -l\nss -tan | grep :3000 | grep ESTAB | wc -l\n```",
+            "score": 0.08462020754814148
+          },
+          {
+            "source": "nginx-emergency.md",
+            "content": "Перед перезапуском всегда проверяйте синтаксис конфигов, чтобы не \"положить\" сервис окончательно.  \n```bash\nnginx -t\n```  \n> ⚠️ NOTE: Если вы видите ошибку `nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)`, значит порт занят другим процессом (например, Apache).",
+            "score": 0.04602866619825363
+          },
+          {
+            "source": "notif-api-docs.md",
+            "content": "Сервис возвращает стандартные HTTP коды. 503 означает переполнение очереди RabbitMQ.",
+            "score": 0.006836740765720606
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "/",
+            "title": "quick-notes.md",
+            "source_file": "quick-notes.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Быстрые заметки по troubleshooting Nginx"
+          },
+          {
+            "doc_id": 2,
+            "service": "nginx",
+            "title": "03-nginx-502-bad-gateway.md",
+            "source_file": "03-nginx-502-bad-gateway.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Nginx: 502 Bad Gateway > Симптомы"
+          },
+          {
+            "doc_id": 3,
+            "service": "nginx",
+            "title": "03-nginx-502-bad-gateway.md",
+            "source_file": "03-nginx-502-bad-gateway.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Nginx: 502 Bad Gateway > Логи и Сообщения об ошибках"
+          },
+          {
+            "doc_id": 4,
+            "service": "/",
+            "title": "nginx-emergency.md",
+            "source_file": "nginx-emergency.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Процедура перезапуска веб-сервера Nginx при аварийных ситуациях > Типовые ошибки в логах"
+          },
+          {
+            "doc_id": 6,
+            "service": "/",
+            "title": "quick-notes.md",
+            "source_file": "quick-notes.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Быстрые заметки по troubleshooting Nginx > Logs investigation"
+          },
+          {
+            "doc_id": 7,
+            "service": "nginx",
+            "title": "03-nginx-502-bad-gateway.md",
+            "source_file": "03-nginx-502-bad-gateway.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Nginx: 502 Bad Gateway > Решение"
+          },
+          {
+            "doc_id": 8,
+            "service": "nginx",
+            "title": "03-nginx-502-bad-gateway.md",
+            "source_file": "03-nginx-502-bad-gateway.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Nginx: 502 Bad Gateway > Диагностика"
+          }
+        ],
+        "latency_sec": 6.234649376012385,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 1.4786190419690683,
+          "retrieve_sec": 0.6855357500026003,
+          "rerank_sec": 1.6984747920650989,
+          "llm_analysis_sec": 0.00043166696559637785,
+          "llm_generation_sec": 2.371588125010021,
+          "total_sec": 6.234649376012385
+        }
+      },
+      "keywords": [
+        "502",
+        "Bad Gateway",
+        "Connection refused",
+        "upstream",
+        "недоступен"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "03-nginx-502-bad-gateway.md"
+        ]
+      }
+    },
+    {
+      "id": "q_002",
+      "question": "Что означает exit code 137 для Docker контейнера и какая наиболее вероятная причина?",
+      "expected_answer": "Exit code 137 указывает на то, что процесс контейнера был принудительно завершен сигналом SIGKILL (9). Наиболее частая причина — срабатывание OOM Killer (Out Of Memory) из-за превышения лимита памяти, установленного для контейнера (Docker memory limit) или нехватки системной памяти. Docker inspect в таких случаях показывает 'OOMKilled: true'.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "Docker контейнер внезапно останавливается с exit code 137. В логах контейнера может не быть явной ошибки. Приложение работает нормально, затем резко падает. Docker inspect показывает OOMKilled: true. Проблема периодически повторяется. Контейнер использует больше памяти, чем выделенный лимит [1].\n\nContainer killed by Docker runtime  \nExit Code: 137  \nOOMKilled: true  \nMemory limit: 2147483648 (2GB)  \nMemory usage at death: 2147483648 (2GB)  \nProcess received: SIGKILL [3]\n\nDocker container: data-processor  \nCgroup: /docker/a8f3c924b871  \nNov 28 16:34:47 docker-host kernel: [18472.847291] Memory cgroup out of memory: Killed process 18293 (java) total-vm:4194304kB, anon-rss:2097152kB, file-rss:0kB, shmem-rss:0kB  \nNov 28 16:34:47 docker-host kernel: [18472.847412] oom_reaper: reaped process 18293 (java), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB [3]\n\npython3: Fatal Python error: Cannot allocate memory  \nMemory requested: 512MB  \nAvailable memory: 128MB  \nContainer memory limit: 2GB  \nRSS usage: 2.1GB (exceeded limit)  \nSwap disabled  \nExit code: 137  \nSignal: SIGKILL (9) [3]",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "06-docker-exit-code-137.md",
+            "content": "Docker контейнер внезапно останавливается с exit code 137. В логах контейнера может не быть явной ошибки. Приложение работает нормально, затем резко падает. Docker inspect показывает OOMKilled: true. Проблема периодически повторяется. Контейнер использует больше памяти, чем выделенный лимит.",
+            "score": 0.9792263507843018
+          },
+          {
+            "source": "02-k8s-crashloopbackoff.md",
+            "content": "```text\n2025-11-28T14:42:33.192847Z INFO  Starting payment-gateway service v2.4.1\n2025-11-28T14:42:33.294102Z INFO  Loading configuration from /etc/config/app.yaml\n2025-11-28T14:42:33.294847Z ERROR Failed to parse configuration file\nError: yaml: unmarshal errors:\nline 12: cannot unmarshal !!str `${DATAB...` into string\nline 18: field redis.timeout not found in type config.RedisConfig\n2025-11-28T14:42:33.295012Z FATAL Configuration validation failed, exiting\n2025-11-28T14:42:33.295124Z INFO  Shutdown signal received\nthread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: ConfigError', src/main.rs:45:47\nstack backtrace:\n0: rust_begin_unwind\nat /rustc/9b00956e5/library/std/src/panicking.rs:584:5\n1: core::panicking::panic_fmt\nat /rustc/9b00956e5/library/core/src/panicking.rs:142:14\n2: core::result::unwrap_failed\nat /rustc/9b00956e5/library/core/src/result.rs:1814:5\n3: payment_gateway::main\nat ./src/main.rs:45\nProcess exited with code 1\nPod payment-gateway-7d5f8c9b4-xk7m2 in namespace production\nContainer ID: containerd://a8f3c924b871d4e9f2a6c3b8d7e5f1a0c2b9e4d3\nExit Code: 1\n```  \n```text\n[2025-11-28 14:45:18] INFO  [main] com.company.ApiGateway - Starting ApiGateway Application\n[2025-11-28 14:45:19] INFO  [main] o.s.boot.SpringApplication - Spring Boot v3.1.5\n[2025-11-28 14:45:22] ERROR [main] o.s.boot.diagnostics.LoggingFailureAnalysisReporter\n***************************\nAPPLICATION FAILED TO START\n***************************\n\nDescription:\n\nFailed to bind properties under 'spring.datasource.url' to java.lang.String:\n\nProperty: spring.datasource.url\nValue: ${DB_CONNECTION_STRING}\nOrigin: class path resource [application.yml] - 12:9\nReason: Could not resolve placeholder 'DB_CONNECTION_STRING' in value \"${DB_CONNECTION_STRING}\"\n\nAction:\n\nUpdate your application's configuration\nCaused by: java.lang.IllegalArgumentException: Could not resolve placeholder 'DB_CONNECTION_STRING' in value \"${DB_CONNECTION_STRING}\"\nat org.springframework.util.PropertyPlaceholderHelper.parseStringValue(PropertyPlaceholderHelper.java:180)\nat org.springframework.boot.context.properties.source.ConfigurationPropertySourcesPropertyResolver.getProperty(ConfigurationPropertySourcesPropertyResolver.java:82)\nProcess terminated with exit code 1\nContainer api-gateway exited\nReason: Error\nExit Code: 1\nSignal: null\n```  \n```text\nNov 28 14:48:52.441 [worker-thread-8] ERROR i.n.u.ResourceLeakDetector - LEAK: ByteBuf.release() was not called before it's garbage-collected.\nRecent access records:\nCreated at:\nio.netty.buffer.PooledByteBufAllocator.newDirectBuffer(PooledByteBufAllocator.java:341)\nio.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:187)\nNov 28 14:48:53.127 [main] FATAL c.c.s.WebServer - Fatal error during startup\njava.lang.OutOfMemoryError: Java heap space\nat java.base/java.nio.HeapByteBuffer.<init>(HeapByteBuffer.java:61)\nat java.base/java.nio.ByteBuffer.allocate(ByteBuffer.java:335)\nat com.company.service.CacheManager.loadCache(CacheManager.java:94)\nat com.company.service.WebServer.start(WebServer.java:156)\nDumping heap to /tmp/java_pid1.hprof ...\nHeap dump file created [2147483648 bytes in 3.421 secs]\nContainer killed by Kubernetes (OOMKilled)\nExit Code: 137\nSignal: SIGKILL\nReason: OOMKilled\nLast State: Terminated\nReason: OOMKilled\nExit Code: 137\nStarted: 2025-11-28T14:48:49Z\nFinished: 2025-11-28T14:48:53Z\n```",
+            "score": 0.9773180484771729
+          },
+          {
+            "source": "06-docker-exit-code-137.md",
+            "content": "```text\n[2025-11-28T16:32:18.392Z] INFO Application started successfully\n[2025-11-28T16:32:45.718Z] INFO Processing batch job: 15000 items\n[2025-11-28T16:33:12.847Z] WARN Memory usage: 1.8GB / 2GB\n[2025-11-28T16:33:15.294Z] INFO Loading data into memory...\nContainer killed by Docker runtime\nExit Code: 137\nOOMKilled: true\nMemory limit: 2147483648 (2GB)\nMemory usage at death: 2147483648 (2GB)\nProcess received: SIGKILL\nContainer ID: a8f3c924b871\nImage: company/data-processor:v1.2.3\n```  \n```text\nNov 28 16:34:47 docker-host kernel: [18472.847291] Memory cgroup out of memory: Killed process 18293 (java) total-vm:4194304kB, anon-rss:2097152kB, file-rss:0kB, shmem-rss:0kB\nNov 28 16:34:47 docker-host kernel: [18472.847412] oom_reaper: reaped process 18293 (java), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB\nNov 28 16:34:47 docker-host dockerd[1247]: time=\"2025-11-28T16:34:47.192847Z\" level=warning msg=\"Container a8f3c924b871 failed to exit within 10 seconds of signal SIGTERM - using SIGKILL\"\nNov 28 16:34:47 docker-host dockerd[1247]: time=\"2025-11-28T16:34:47.294102Z\" level=info msg=\"Container a8f3c924b871d4e9f2a6c3b8d7e5f1a0 exited with code 137\"\nDocker container: data-processor\nCgroup: /docker/a8f3c924b871\n```  \n```text\npython3: Fatal Python error: Cannot allocate memory\nStack (most recent call first):\nFile \"/app/processor.py\", line 147, in process_large_file\nFile \"/app/main.py\", line 89, in main\nMemory requested: 512MB\nAvailable memory: 128MB\nContainer memory limit: 2GB\nRSS usage: 2.1GB (exceeded limit)\nSwap disabled\nExit code: 137\nSignal: SIGKILL (9)\nContainer: data-processor-prod\nRestart count: 15\nLast restart: 2025-11-28T16:34:47Z\n```",
+            "score": 0.936936616897583
+          },
+          {
+            "source": "02-k8s-crashloopbackoff.md",
+            "content": "**Шаг 1: Определение root cause из логов**  \nАнализируйте exit code для понимания проблемы:  \n- **Exit Code 1**: Ошибка приложения (неправильная конфигурация, exception)\n- **Exit Code 137**: OOMKilled (нехватка памяти)\n- **Exit Code 139**: Segmentation fault (SIGSEGV)\n- **Exit Code 143**: SIGTERM (graceful shutdown)  \n```bash\n# Получите последний exit code\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.status.containerStatuses[0].lastState.terminated.exitCode}'\n\n# Получите причину\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}'\n```  \n**Шаг 2: Исправление проблем конфигурации**  \nЕсли проблема в missing environment variables:  \n```bash\n# Проверьте, что все нужные переменные определены\nkubectl get deployment payment-gateway -n production -o yaml | grep -A 20 \"env:\"\n\n# Обновите deployment с правильными переменными\nkubectl set env deployment/payment-gateway -n production DB_CONNECTION_STRING=\"postgresql://user:pass@db:5432/prod\"\n\n# Или отредактируйте напрямую\nkubectl edit deployment payment-gateway -n production\n```  \nЕсли проблема в ConfigMap:  \n```bash\n# Проверьте содержимое ConfigMap\nkubectl get configmap app-config -n production -o yaml\n\n# Исправьте ConfigMap\nkubectl edit configmap app-config -n production\n\n# Форсируйте обновление подов\nkubectl rollout restart deployment/payment-gateway -n production\n```  \n**Шаг 3: Решение проблемы OOMKilled**  \nЕсли exit code 137 (OOMKilled):  \n```bash\n# Увеличьте memory limits\nkubectl patch deployment payment-gateway -n production -p '\nspec:\ntemplate:\nspec:\ncontainers:\n- name: payment-gateway\nresources:\nrequests:\nmemory: \"512Mi\"\ncpu: \"250m\"\nlimits:\nmemory: \"2Gi\"\ncpu: \"1000m\"\n'\n\n# Проверьте применение\nkubectl rollout status deployment/payment-gateway -n production\n```  \nДля Java приложений настройте JVM heap:  \n```bash\nkubectl set env deployment/payment-gateway -n production \\\nJAVA_OPTS=\"-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC\"\n```  \n**Шаг 4: Настройка Health Checks**  \nЕсли приложение падает из-за неправильных probes:  \n```bash\n# Создайте или обновите deployment с правильными probes\nkubectl apply -f - <<EOF\napiVersion: apps/v1\nkind: Deployment\nmetadata:\nname: payment-gateway\nnamespace: production\nspec:\nreplicas: 3\nselector:\nmatchLabels:\napp: payment-gateway\ntemplate:\nmetadata:\nlabels:\napp: payment-gateway\nspec:\ncontainers:\n- name: payment-gateway\nimage: company/payment-gateway:v2.4.1\nports:\n- containerPort: 8080\nlivenessProbe:\nhttpGet:\npath: /healthz\nport: 8080\ninitialDelaySeconds: 30\nperiodSeconds: 10\ntimeoutSeconds: 5\nfailureThreshold: 3\nreadinessProbe:\nhttpGet:\npath: /ready\nport: 8080\ninitialDelaySeconds: 10\nperiodSeconds: 5\ntimeoutSeconds: 3\nfailureThreshold: 3\nresources:\nrequests:\nmemory: \"512Mi\"\ncpu: \"250m\"\nlimits:\nmemory: \"2Gi\"\ncpu: \"1000m\"\nEOF\n```  \n**Шаг 5: Debug с временным контейнером**  \nЕсли проблема сложная, запустите debug session:  \n```bash\n# Для Kubernetes 1.23+\nkubectl debug payment-gateway-7d5f8c9b4-xk7m2 -n production -it --image=busybox --share-processes\n\n# Или создайте pod с тем же манифестом, но с другой командой\nkubectl run payment-gateway-debug -n production --image=company/payment-gateway:v2.4.1 --command -- /bin/sh -c \"sleep 3600\"\n\n# Войдите в контейнер\nkubectl exec -it payment-gateway-debug -n production -- /bin/bash\n\n# Проверьте файловую систему, переменные, конфиги\nls -la /etc/config/\ncat /etc/config/app.yaml\nenv | sort\n```  \n**Шаг 6: Мониторинг и алертинг**  \n```bash\n# Создайте PrometheusRule для алертов\ncat > crash-loop-alert.yaml <<EOF\napiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\nname: pod-crash-loop-alert\nnamespace: monitoring\nspec:\ngroups:\n- name: kubernetes.pods\ninterval: 30s\nrules:\n- alert: PodCrashLooping\nexpr: rate(kube_pod_container_status_restarts_total[15m]) > 0\nfor: 5m\nlabels:\nseverity: critical\nannotations:\nsummary: \"Pod {{ \\$labels.namespace }}/{{ \\$labels.pod }} is crash looping\"\ndescription: \"Pod has restarted {{ \\$value }} times in the last 15 minutes\"\nEOF\n\nkubectl apply -f crash-loop-alert.yaml\n```  \n**Шаг 7: Профилактика**  \n- Всегда используйте health checks (liveness + readiness)\n- Устанавливайте адекватные resource requests/limits\n- Тестируйте deployment в staging окружении\n- Используйте init containers для pre-flight checks\n- Включите graceful shutdown в приложении\n- Логируйте подробно startup sequence",
+            "score": 0.5660904049873352
+          },
+          {
+            "source": "02-k8s-crashloopbackoff.md",
+            "content": "Проверьте статус пода и причину падения:  \n```bash\n# Получите список подов с проблемами\nkubectl get pods -A | grep -E 'CrashLoopBackOff|Error|OOMKilled'\n\n# Детальная информация о проблемном поде\nkubectl describe pod payment-gateway-7d5f8c9b4-xk7m2 -n production\n\n# Проверьте логи контейнера (текущего)\nkubectl logs payment-gateway-7d5f8c9b4-xk7m2 -n production\n\n# Проверьте логи предыдущего контейнера (который упал)\nkubectl logs payment-gateway-7d5f8c9b4-xk7m2 -n production --previous\n\n# Если несколько контейнеров в поде\nkubectl logs payment-gateway-7d5f8c9b4-xk7m2 -n production -c main-app --previous\n```  \n```bash\n# Проверьте events в namespace\nkubectl get events -n production --sort-by='.lastTimestamp' | tail -20\n\n# Проверьте ресурсы пода\nkubectl top pod payment-gateway-7d5f8c9b4-xk7m2 -n production\n\n# Проверьте лимиты и requests\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.spec.containers[*].resources}'\n```  \n```bash\n# Проверьте ConfigMaps и Secrets\nkubectl get configmap -n production\nkubectl describe configmap app-config -n production\n\n# Проверьте переменные окружения\nkubectl exec payment-gateway-7d5f8c9b4-xk7m2 -n production -- env\n\n# Проверьте readiness/liveness probes\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o yaml | grep -A 10 \"livenessProbe\\|readinessProbe\"\n```",
+            "score": 0.2111256867647171
+          },
+          {
+            "source": "06-docker-exit-code-137.md",
+            "content": "```bash\n# Проверьте статус контейнера\ndocker ps -a | grep data-processor\ndocker inspect data-processor | grep -A 10 \"State\"\ndocker inspect data-processor | grep \"OOMKilled\"\n\n# Посмотрите exit code\ndocker inspect data-processor --format='{{.State.ExitCode}}'\n\n# Проверьте лимиты памяти\ndocker stats data-processor --no-stream\ndocker inspect data-processor | grep -i memory\n\n# Проверьте kernel logs\nsudo dmesg | grep -i \"out of memory\"\nsudo journalctl -k | grep -i oom\n```",
+            "score": 0.18564192950725555
+          },
+          {
+            "source": "stream-debug.md",
+            "content": "Поскольку Kafka работает внутри Docker, проверьте настройки `KAFKA_ADVERTISED_LISTENERS`. Неправильная конфигурация может привести к тому, что клиент будет пытаться подключиться к внутреннему IP контейнера, который недоступен снаружи.",
+            "score": 0.05456513538956642
+          },
+          {
+            "source": "stream-debug.md",
+            "content": "Часто причиной является throttling CPU или нехватка памяти, из-за чего JVM Garbage Collector начинает работать слишком агрессивно.  \n```bash\ndocker stats my-consumer-container\n```  \n> ⚠️ WARNING: Если CPU Usage приближается к лимиту, установленному в docker-compose или k8s, Kafka Consumer может пропускать heartbeats, что приведет к постоянным ребалансировкам (rebalancing).",
+            "score": 0.05304863676428795
+          },
+          {
+            "source": "mongo-auth-error.md",
+            "content": "Если вы запутались в паролях на этапе разработки:\n1. Остановите контейнеры: `docker-compose down`.\n2. Удалите volume (ВНИМАНИЕ: данные будут потеряны): `docker volume rm project_mongo_data`.\n3. Запустите заново: `docker-compose up -d`.",
+            "score": 0.0280491653829813
+          },
+          {
+            "source": "ansible-cleanup.md",
+            "content": "Если на сервере запущен Docker, он часто является причиной нехватки места из-за старых слоев и образов.  \n```bash\nansible web_servers -m shell -a \"docker system prune -af\" -i inventory.ini --become\n```",
+            "score": 0.013603624887764454
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "docker",
+            "title": "06-docker-exit-code-137.md",
+            "source_file": "06-docker-exit-code-137.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Docker: Container Exit Code 137 > Симптомы"
+          },
+          {
+            "doc_id": 3,
+            "service": "docker",
+            "title": "06-docker-exit-code-137.md",
+            "source_file": "06-docker-exit-code-137.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Docker: Container Exit Code 137 > Логи и Сообщения об ошибках"
+          }
+        ],
+        "latency_sec": 12.346121666952968,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 0.7505198339931667,
+          "retrieve_sec": 0.16631029197014868,
+          "rerank_sec": 3.4035995829617605,
+          "llm_analysis_sec": 0.00042912503704428673,
+          "llm_generation_sec": 8.025262832990848,
+          "total_sec": 12.346121666952968
+        }
+      },
+      "keywords": [
+        "OOMKilled",
+        "SIGKILL",
+        "память",
+        "memory limit"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "06-docker-exit-code-137.md"
+        ]
+      }
+    },
+    {
+      "id": "q_003",
+      "question": "Какой параметр в postgresql.conf на мастере отвечает за уровень записи WAL для репликации и какое значение он должен принимать?",
+      "expected_answer": "Параметр `wal_level` определяет количество информации, записываемой в WAL. Для настройки репликации (как Streaming, так и архивной) он должен быть установлен в значение `replica` (или `logical`, если планируется логическая репликация, так как `logical` включает в себя `replica`). Значение `minimal` не поддерживает репликацию.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "Параметр в `postgresql.conf` для уровня записи WAL репликации — `wal_level = replica` [1].",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "11-postgresql-replication-guide.md",
+            "content": "```bash\n# На мастере, от имени postgres\nsudo -u postgres psql -c \"CREATE ROLE replicator WITH REPLICATION LOGIN ENCRYPTED PASSWORD 'StrongPass123';\"\n```  \n```ini\n# postgresql.conf (мастер)\nwal_level = replica               # включить запись WAL для репликации\nmax_wal_senders = 10              # количество процессов отправки WAL\nwal_keep_segments = 64            # сколько сегментов WAL хранить\nhot_standby = on                  # разрешить запросы на реплике\n```  \n```ini\n# pg_hba.conf (мастер)\n# Разрешить репликацию от реплик\nhost    replication     replicator      10.0.0.0/24          md5\n```  \nПерезапустите PostgreSQL:  \n```bash\nsudo systemctl restart postgresql\n```",
+            "score": 0.991854190826416
+          },
+          {
+            "source": "11-postgresql-replication-guide.md",
+            "content": "- ОС: Linux (Ubuntu 20.04+, CentOS 8+)\n- PostgreSQL: версии 12‑15\n- Доступ к сети между мастером и репликами (порт 5432)\n- Пользователь `replicator` с правом REPLICATION на мастере",
+            "score": 0.18437902629375458
+          },
+          {
+            "source": "11-postgresql-replication-guide.md",
+            "content": "Репликация PostgreSQL обеспечивает высокую доступность и масштабируемость чтения, позволяя синхронно или асинхронно копировать данные с мастера на реплики. Это критически важно для отказоустойчивых продакшн‑систем, где требуется минимальное время простоя и возможность распределения нагрузки на чтение.",
+            "score": 0.15577225387096405
+          },
+          {
+            "source": "11-postgresql-replication-guide.md",
+            "content": "1. Выполните `SELECT now();` на реплике – время должно отставать не более нескольких секунд от мастера.\n2. Сгенерируйте нагрузку записи на мастере и убедитесь, что изменения появляются на реплике (например, `INSERT INTO test VALUES (1);`).\n3. Проверьте отсутствие ошибок в логах `/var/log/postgresql/postgresql-15-main.log`.\n4. При необходимости переключите реплику в роль мастера, создав `trigger_file`.",
+            "score": 0.08585317432880402
+          },
+          {
+            "source": "db-migration-rds.md",
+            "content": "1. Создайте **Source Endpoint** (MySQL).\n2. Создайте **Target Endpoint** (RDS PostgreSQL).\n3. Создайте **Replication Task** с типом `Full load and ongoing replication`.",
+            "score": 0.035602979362010956
+          },
+          {
+            "source": "26-postgres-connection-refused.md",
+            "content": "1. Проверьте статус сервиса:\n```bash\nsudo systemctl status postgresql\n```\n2. Проверьте файл `postgresql.conf` и параметр `listen_addresses`. Он должен быть установлен в `'*'` или конкретный IP (не только `'localhost'`, если подключаетесь извне).\n```ini\nlisten_addresses = '*'\n```",
+            "score": 0.027085989713668823
+          },
+          {
+            "source": "11-postgresql-replication-guide.md",
+            "content": "```bash\n# На реплике\nsudo -u postgres psql -c \"SELECT pg_is_in_recovery();\"\n# Ожидается: true\n```  \n```bash\n# На мастере\nsudo -u postgres psql -c \"SELECT client_addr, state FROM pg_stat_replication;\"\n```",
+            "score": 0.02251703292131424
+          },
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "- ОС: Linux (Ubuntu 20.04+, CentOS 8+)\n- MySQL Server 8.0+\n- Доступ к сети между мастером и слейвами (порт 3306)\n- Пользователь `repl` с правом REPLICATION SLAVE на мастере",
+            "score": 0.019113168120384216
+          },
+          {
+            "source": "sre-engineering-handbook.md",
+            "content": "Для каждого критического алерта ДОЛЖЕН существовать ранбук.\n- [Пример: Ошибки 502 в Nginx](03-nginx-502-bad-gateway.md)\n- [Пример: Репликация Postgres](11-postgresql-replication-guide.md)  \n---",
+            "score": 0.017461862415075302
+          },
+          {
+            "source": "01-postgresql-deadlock.md",
+            "content": "**Шаг 1: Немедленное устранение блокировки (если критично)**  \n```bash\n# Найдите PID блокирующего процесса\nSELECT pg_terminate_backend(blocking_pid);\n# Замените blocking_pid на конкретный PID из диагностики\n\n# Если pg_terminate_backend не помогает, используйте более жесткий метод:\nSELECT pg_cancel_backend(blocking_pid);\n```  \n**Шаг 2: Анализ кода приложения**  \nНайдите в коде места, где происходят UPDATE/INSERT в неоптимальном порядке:  \n```bash\n# Проверьте логи приложения на наличие паттернов\ngrep -r \"UPDATE.*WHERE.*=\" app_logs/application-$(date +%Y-%m-%d).log | grep -E \"user_accounts|orders\"\n```  \nТипичные причины дедлоков:\n- Разный порядок обновления строк в разных транзакциях\n- Длинные транзакции с множественными UPDATE\n- Отсутствие индексов на WHERE условиях  \n**Шаг 3: Рефакторинг транзакций**  \nПерепишите код с соблюдением строгого порядка блокировок:  \n```sql\n-- Плохо (может вызвать deadlock):\nBEGIN;\nUPDATE accounts SET balance = balance - 100 WHERE id = 2;\nUPDATE accounts SET balance = balance + 100 WHERE id = 1;\nCOMMIT;\n\n-- Хорошо (всегда обновляем в порядке возрастания ID):\nBEGIN;\nUPDATE accounts SET balance = balance + 100 WHERE id = 1;\nUPDATE accounts SET balance = balance - 100 WHERE id = 2;\nCOMMIT;\n\n-- Или используйте FOR UPDATE с сортировкой:\nBEGIN;\nSELECT * FROM accounts WHERE id IN (1, 2) ORDER BY id FOR UPDATE;\n-- затем UPDATE\nCOMMIT;\n```  \n**Шаг 4: Настройка PostgreSQL для лучшего детектирования**  \n```bash\n# Отредактируйте postgresql.conf\nsudo nano /etc/postgresql/14/main/postgresql.conf\n\n# Добавьте/измените:\ndeadlock_timeout = 1s                    # Быстрее детектировать дедлоки\nlog_lock_waits = on                      # Логировать долгие ожидания\nlock_timeout = 10s                       # Таймаут на получение лока\nstatement_timeout = 30s                  # Общий таймаут запроса\n\n# Перезагрузите конфигурацию\nsudo systemctl reload postgresql\n# или\nSELECT pg_reload_conf();\n```  \n**Шаг 5: Мониторинг и профилактика**  \n```bash\n# Создайте алерт в Prometheus/Grafana:\n# rate(pg_stat_database_deadlocks[5m]) > 0\n\n# Добавьте скрипт проверки в cron\ncat > /usr/local/bin/check_pg_deadlocks.sh << 'EOF'\n#!/bin/bash\nDEADLOCKS=$(psql -U postgres -d prod_db -t -c \"SELECT deadlocks FROM pg_stat_database WHERE datname='prod_db';\")\nif [ \"$DEADLOCKS\" -gt 10 ]; then\necho \"WARNING: Deadlocks detected: $DEADLOCKS\" | mail -s \"PostgreSQL Deadlock Alert\" ops@company.com\nfi\nEOF\n\nchmod +x /usr/local/bin/check_pg_deadlocks.sh\necho \"*/5 * * * * /usr/local/bin/check_pg_deadlocks.sh\" | crontab -\n```  \n**Шаг 6: Код-ревью и best practices**  \n- Держите транзакции короткими\n- Используйте REPEATABLE READ или SERIALIZABLE изоляцию осознанно\n- Всегда блокируйте ресурсы в одном и том же порядке\n- Добавьте retry logic с exponential backoff в приложении:  \n```python\n# Пример на Python\nimport psycopg2\nimport time\n\ndef execute_with_retry(query, max_retries=3):\nfor attempt in range(max_retries):\ntry:\nconn = psycopg2.connect(...)\ncursor = conn.cursor()\ncursor.execute(query)\nconn.commit()\nreturn True\nexcept psycopg2.extensions.TransactionRollbackError as e:\nif \"deadlock detected\" in str(e):\ntime.sleep(2 ** attempt)  # exponential backoff\ncontinue\nraise\nreturn False\n```",
+            "score": 0.012488087639212608
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "postgres",
+            "title": "11-postgresql-replication-guide.md",
+            "source_file": "11-postgresql-replication-guide.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Настройка репликации PostgreSQL > Пошаговая инструкция > Шаг 1: Подготовка мастера"
+          }
+        ],
+        "latency_sec": 6.1710074989823624,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 1.9135031669866294,
+          "retrieve_sec": 0.7514790829736739,
+          "rerank_sec": 1.7685557908844203,
+          "llm_analysis_sec": 0.0005672500701621175,
+          "llm_generation_sec": 1.7369022080674767,
+          "total_sec": 6.1710074989823624
+        }
+      },
+      "keywords": [
+        "wal_level",
+        "replica"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "11-postgresql-replication-guide.md"
+        ]
+      }
+    },
+    {
+      "id": "q_004",
+      "question": "Как называется таблица в DynamoDB для блокировок Terraform state и какой ключ partition key она должна иметь?",
+      "expected_answer": "Для блокировки состояния Terraform (State Locking) рекомендуется создать таблицу DynamoDB (обычно с именем `terraform-state-lock`). Критически важно, чтобы таблица имела Partition Key с точным именем `LockID` (тип String), иначе Terraform не сможет захватить лок.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "DynamoDB таблица для блокировок Terraform state использует атрибут `LockID` в качестве ключа разделения (partition key) [2].",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "aws-s3-terraform.md",
+            "content": "После выполнения этих шагов ваш `backend` блок в Terraform будет выглядеть так:  \n```hcl\nterraform {\nbackend \"s3\" {\nbucket         = \"my-company-terraform-state\"\nkey            = \"global/s3/terraform.tfstate\"\nregion         = \"us-east-1\"\ndynamodb_table = \"terraform-state-lock\"\nencrypt        = true\n}\n}\n```  \n> ⚠️ NOTE: Никогда не храните конфиденциальные данные в открытом виде в tfstate, даже если он зашифрован в S3.",
+            "score": 0.9835386276245117
+          },
+          {
+            "source": "aws-s3-terraform.md",
+            "content": "Для предотвращения одновременного внесения изменений несколькими инженерами необходимо использовать DynamoDB.  \n```bash\naws dynamodb create-table \\\n--table-name terraform-state-lock \\\n--attribute-definitions AttributeName=LockID,AttributeType=S \\\n--key-schema AttributeName=LockID,KeyType=HASH \\\n--provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5\n```  \n![Настройка в консоли AWS](path/to/s3_console_setup.png)",
+            "score": 0.977912425994873
+          },
+          {
+            "source": "sre-engineering-handbook.md",
+            "content": "- Модульность: Используйте общие модули из приватного реестра.\n- State: Храните только в S3 с блокировкой через DynamoDB.\n- [План миграции на IaC](bare-metal-to-k8s-migration.md)",
+            "score": 0.09960003942251205
+          },
+          {
+            "source": "kafka-cluster-partitioning-strategy.md",
+            "content": "| Topic Name | Partitions | Retention |\n| :--- | :--- | :--- |\n| orders.created | 24 | 7 days |\n| orders.cancelled | 12 | 7 days |\n| payments.status | 32 | 14 days |",
+            "score": 0.040944654494524
+          },
+          {
+            "source": "gcp-terraform-setup.md",
+            "content": "- Check the [Terraform Registry](https://registry.terraform.io/providers/hashicorp/google/latest/docs) for updates.\n- Use `terraform state list` to see current managed resources.",
+            "score": 0.03097274899482727
+          },
+          {
+            "source": "legacy-notes.md",
+            "content": "Это мажорное обновление, которое включает в себя ломающие изменения (breaking changes). Пожалуйста, внимательно прочитайте перед обновлением `terraform { required_version = \"...\" }`.",
+            "score": 0.020311841741204262
+          },
+          {
+            "source": "aws-s3-terraform.md",
+            "content": "Создайте бакет с уникальным именем. Рекомендуется использовать префикс компании.  \n```bash\naws s3api create-bucket --bucket my-company-terraform-state --region us-east-1\n```",
+            "score": 0.017190413549542427
+          },
+          {
+            "source": "cassandra-dr-runbook.md",
+            "content": "Используйте Terraform для создания нод в регионе Secondary.\n```bash\ncd terraform/cassandra-dr\nterraform apply -var=\"region=eu-central-1\"\n```",
+            "score": 0.015233405865728855
+          },
+          {
+            "source": "kafka-cluster-partitioning-strategy.md",
+            "content": "```go\n// Message structure example\ntype OrderEvent struct {\nOrderID   string    `json:\"order_id\"` // This will be the partition key\nStatus    string    `json:\"status\"`\nTimestamp time.Time `json:\"ts\"`\n}\n```",
+            "score": 0.009461523033678532
+          },
+          {
+            "source": "vault-root-ca-expiration.md",
+            "content": "| Задача | Ответственный | Статус |\n| :--- | :--- | :--- |\n| **Мониторинг**: Добавить `blackbox_exporter` проверку срока действия сертификата на порту 8200. | @monitoring-team | Done |\n| **Автоматизация**: Перенести Root CA в управляемый сервис (AWS Private CA или HashiCorp Vault PKI engine) с автопродлением. | @sre-lead | In Progress |\n| **Документация**: Создать ранбук по экстренной замене сертификатов в Vault (без доступа к API). | @security-engineer | Done |\n| **Аудит**: Проверить сроки действия всех Root CA в других кластерах (K8s, Kafka, Redis). | @devops-team | Done |",
+            "score": 0.007636035326868296
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 2,
+            "service": "/",
+            "title": "aws-s3-terraform.md",
+            "source_file": "aws-s3-terraform.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Инструкция по настройке S3 Bucket для хранения Terraform State > Шаг 5: Создание таблицы DynamoDB для блокировок (Locking)"
+          }
+        ],
+        "latency_sec": 6.928742624935694,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 1.1700030419742689,
+          "retrieve_sec": 0.6724861250258982,
+          "rerank_sec": 4.39405916701071,
+          "llm_analysis_sec": 0.00168058299459517,
+          "llm_generation_sec": 0.6905137079302222,
+          "total_sec": 6.928742624935694
+        }
+      },
+      "keywords": [
+        "terraform-state-lock",
+        "LockID"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "aws-s3-terraform.md"
+        ]
+      }
+    },
+    {
+      "id": "q_005",
+      "question": "Какую политику overflow использует RabbitMQ для отброса старых сообщений из начала очереди?",
+      "expected_answer": "RabbitMQ использует политику `overflow: \"drop-head\"`. Когда очередь достигает максимальной длины (`max-length`), эта политика предписывает удалять ('drop') сообщения из головы ('head') очереди — то есть самые старые, чтобы освободить место для новых входящих сообщений.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "RabbitMQ политика overflow, отбрасывающая старые сообщения из начала очереди, настраивается с параметром `\"overflow\":\"drop-head\"`.  \n```bash\nrabbitmqctl set_policy tasks-overflow \\\n\"tasks.*\" \\\n'{\"max-length\":1000000,\"overflow\":\"drop-head\"}' \\\n--apply-to queues\n```  \n[1]",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "08-rabbitmq-queue-overflow.md",
+            "content": "**Шаг 1:** Увеличьте consumer capacity  \n```bash\n# Добавьте больше consumers\n# В коде приложения увеличьте workers\n\n# Масштабируйте consumer pods (k8s)\nkubectl scale deployment task-consumer --replicas=10\n```  \n**Шаг 2:** Настройте overflow policy  \n```bash\nrabbitmqctl set_policy tasks-overflow \\\n\"tasks.*\" \\\n'{\"max-length\":1000000,\"overflow\":\"drop-head\"}' \\\n--apply-to queues\n\n# drop-head - удалять старые\n# reject-publish - отклонять новые\n```  \n**Шаг 3:** Purge если критично  \n```bash\nrabbitmqctl purge_queue tasks.processing\n```",
+            "score": 0.9333489537239075
+          },
+          {
+            "source": "08-rabbitmq-queue-overflow.md",
+            "content": "Сообщения не попадают в очередь RabbitMQ, publisher получает reject. Queue достигла максимальной длины. Мониторинг показывает миллионы сообщений в очереди. Consumer не успевает обрабатывать messages. Memory warning в RabbitMQ management UI. Приложение теряет события.",
+            "score": 0.3404961824417114
+          },
+          {
+            "source": "08-rabbitmq-queue-overflow.md",
+            "content": "```text\n2025-11-28 17:05:42 [warning] <0.18293.42> Queue 'tasks.processing' in vhost '/' has reached max-length limit of 1000000\n2025-11-28 17:05:42 [error] <0.18294.42> Channel error on connection <0.18291.42> (10.0.2.47:52183 -> 10.0.1.10:5672): operation queue.declare caused a channel exception precondition_failed: 406\nNode: rabbit@rabbitmq-1\nQueue: tasks.processing\nMessages: 1000000\nMax length: 1000000\nMemory used: 4.2GB\nConsumer count: 5\n```  \n```text\n[2025-11-28T17:08:19.284] ERROR AMQPChannelError: (406, \"PRECONDITION_FAILED - queue max-length exceeded\")\npika.exceptions.AMQPChannelError: (406, \"PRECONDITION_FAILED\")\nFile \"/app/messaging/publisher.py\", line 67, in publish_message\nchannel.basic_publish(exchange='tasks', routing_key='processing', body=message)\nQueue: tasks.processing\nMessages ready: 1000000\nUnacked messages: 847\nConsumer utilization: 23%\nMessage rate (in): 5000/s\nMessage rate (out): 350/s\nRequest ID: f8c2a91d-4e3b-4f2c-9d1e\n```  \n```text\njava.io.IOException: com.rabbitmq.client.ShutdownSignalException: channel error; protocol method: #method<channel.close>(reply-code=406, reply-text=PRECONDITION_FAILED - max-length, class-id=50, method-id=10)\nat com.rabbitmq.client.impl.AMQChannel.wrap(AMQChannel.java:129)\nat com.rabbitmq.client.impl.ChannelN.basicPublish(ChannelN.java:619)\nat com.company.messaging.TaskPublisher.send(TaskPublisher.java:94)\nQueue overflow policy: reject-publish\nQueue name: tasks.processing\nMax length: 1000000\nMessages in queue: 1000000\nThread: publisher-thread-8\n```",
+            "score": 0.2793446183204651
+          },
+          {
+            "source": "linux-network-performance-tuning.md",
+            "content": "Используйте `netstat -s` или `nstat` для поиска проблем:  \n- `TcpExtListenOverflows`: Очередь `accept()` переполнена (увеличьте `somaxconn`).\n- `TcpExtListenDrops`: Ядро отбросило пакеты из-за нехватки ресурсов.\n- `TcpRetransSegs`: Процент ретрансмиссий (в норме < 1%).",
+            "score": 0.10539884120225906
+          },
+          {
+            "source": "08-rabbitmq-queue-overflow.md",
+            "content": "```bash\n# Проверьте очереди\nrabbitmqctl list_queues name messages consumers message_bytes\n\n# Детальная информация\nrabbitmqctl list_queues name messages_ready messages_unacknowledged \\\nmemory consumer_utilisation\n\n# Через API\ncurl -u guest:guest http://localhost:15672/api/queues\n```",
+            "score": 0.03952841833233833
+          },
+          {
+            "source": "migration-mq.md",
+            "content": "| Характеристика | RabbitMQ | NATS JetStream |\n| :--- | :--- | :--- |\n| **Протокол** | AMQP 0-9-1 | NATS (Binary) |\n| **Хранение** | Очереди (Queues) | Стримы (Streams) |\n| **Репликация** | Quorum Queues | Raft |\n| **Сложность** | Высокая (Erlang) | Низкая (Go binary) |",
+            "score": 0.035435404628515244
+          },
+          {
+            "source": "notif-api-docs.md",
+            "content": "Сервис возвращает стандартные HTTP коды. 503 означает переполнение очереди RabbitMQ.",
+            "score": 0.03462221100926399
+          },
+          {
+            "source": "bare-metal-to-k8s-migration.md",
+            "content": "Перед началом миграции каждый сервис должен быть классифицирован:\n- **Stateless**: Веб-приложения, API, микросервисы (мигрируют первыми).\n- **Stateful**: Базы данных, очереди сообщений, кеши (требуют осторожности и использования `PersistentVolumes`).\n- **Legacy**: Приложения, которые нельзя контейнеризировать (остаются на ВМ или переписываются).",
+            "score": 0.01992376707494259
+          },
+          {
+            "source": "rabbit-mq-internal-api.md",
+            "content": "We use Dead Letter Exchanges (DLX) for failed messages. If consumer returns `NACK`, message goes to `retry-queue` with TTL.  \n> [!IMPORTANT]\n> All published messages must have `correlation_id` header for tracing (Jaeger).",
+            "score": 0.017137212678790092
+          },
+          {
+            "source": "rabbit-mq-internal-api.md",
+            "content": "| Method | Path | Description | Payload |\n| :--- | :--- | :--- | :--- |\n| `POST` | `/api/v1/publish` | Отправка сообщения в exchange | `MessageDTO` |\n| `GET` | `/api/v1/queues/{name}` | Статус конкретной очереди | - |",
+            "score": 0.015354089438915253
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "rabbitmq",
+            "title": "08-rabbitmq-queue-overflow.md",
+            "source_file": "08-rabbitmq-queue-overflow.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "RabbitMQ: Queue Overflow > Решение"
+          }
+        ],
+        "latency_sec": 5.793342999997549,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 1.2251537080155686,
+          "retrieve_sec": 0.6789417499676347,
+          "rerank_sec": 1.9826697090175003,
+          "llm_analysis_sec": 0.0004416659940034151,
+          "llm_generation_sec": 1.9061361670028418,
+          "total_sec": 5.793342999997549
+        }
+      },
+      "keywords": [
+        "drop-head"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "08-rabbitmq-queue-overflow.md"
+        ]
+      }
+    },
+    {
+      "id": "q_006",
+      "question": "Какой exit code означает graceful shutdown в Kubernetes и какому сигналу он соответствует?",
+      "expected_answer": "Exit Code 143 в Kubernetes (и Docker) соответствует получению процесса сигнала SIGTERM (128 + 15 = 143). Это стандартный сигнал для запроса корректного завершения работы приложения (graceful shutdown), в отличие от SIGKILL.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "Exit Code: 143: SIGTERM (graceful shutdown) [1].",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "02-k8s-crashloopbackoff.md",
+            "content": "**Шаг 1: Определение root cause из логов**  \nАнализируйте exit code для понимания проблемы:  \n- **Exit Code 1**: Ошибка приложения (неправильная конфигурация, exception)\n- **Exit Code 137**: OOMKilled (нехватка памяти)\n- **Exit Code 139**: Segmentation fault (SIGSEGV)\n- **Exit Code 143**: SIGTERM (graceful shutdown)  \n```bash\n# Получите последний exit code\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.status.containerStatuses[0].lastState.terminated.exitCode}'\n\n# Получите причину\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}'\n```  \n**Шаг 2: Исправление проблем конфигурации**  \nЕсли проблема в missing environment variables:  \n```bash\n# Проверьте, что все нужные переменные определены\nkubectl get deployment payment-gateway -n production -o yaml | grep -A 20 \"env:\"\n\n# Обновите deployment с правильными переменными\nkubectl set env deployment/payment-gateway -n production DB_CONNECTION_STRING=\"postgresql://user:pass@db:5432/prod\"\n\n# Или отредактируйте напрямую\nkubectl edit deployment payment-gateway -n production\n```  \nЕсли проблема в ConfigMap:  \n```bash\n# Проверьте содержимое ConfigMap\nkubectl get configmap app-config -n production -o yaml\n\n# Исправьте ConfigMap\nkubectl edit configmap app-config -n production\n\n# Форсируйте обновление подов\nkubectl rollout restart deployment/payment-gateway -n production\n```  \n**Шаг 3: Решение проблемы OOMKilled**  \nЕсли exit code 137 (OOMKilled):  \n```bash\n# Увеличьте memory limits\nkubectl patch deployment payment-gateway -n production -p '\nspec:\ntemplate:\nspec:\ncontainers:\n- name: payment-gateway\nresources:\nrequests:\nmemory: \"512Mi\"\ncpu: \"250m\"\nlimits:\nmemory: \"2Gi\"\ncpu: \"1000m\"\n'\n\n# Проверьте применение\nkubectl rollout status deployment/payment-gateway -n production\n```  \nДля Java приложений настройте JVM heap:  \n```bash\nkubectl set env deployment/payment-gateway -n production \\\nJAVA_OPTS=\"-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC\"\n```  \n**Шаг 4: Настройка Health Checks**  \nЕсли приложение падает из-за неправильных probes:  \n```bash\n# Создайте или обновите deployment с правильными probes\nkubectl apply -f - <<EOF\napiVersion: apps/v1\nkind: Deployment\nmetadata:\nname: payment-gateway\nnamespace: production\nspec:\nreplicas: 3\nselector:\nmatchLabels:\napp: payment-gateway\ntemplate:\nmetadata:\nlabels:\napp: payment-gateway\nspec:\ncontainers:\n- name: payment-gateway\nimage: company/payment-gateway:v2.4.1\nports:\n- containerPort: 8080\nlivenessProbe:\nhttpGet:\npath: /healthz\nport: 8080\ninitialDelaySeconds: 30\nperiodSeconds: 10\ntimeoutSeconds: 5\nfailureThreshold: 3\nreadinessProbe:\nhttpGet:\npath: /ready\nport: 8080\ninitialDelaySeconds: 10\nperiodSeconds: 5\ntimeoutSeconds: 3\nfailureThreshold: 3\nresources:\nrequests:\nmemory: \"512Mi\"\ncpu: \"250m\"\nlimits:\nmemory: \"2Gi\"\ncpu: \"1000m\"\nEOF\n```  \n**Шаг 5: Debug с временным контейнером**  \nЕсли проблема сложная, запустите debug session:  \n```bash\n# Для Kubernetes 1.23+\nkubectl debug payment-gateway-7d5f8c9b4-xk7m2 -n production -it --image=busybox --share-processes\n\n# Или создайте pod с тем же манифестом, но с другой командой\nkubectl run payment-gateway-debug -n production --image=company/payment-gateway:v2.4.1 --command -- /bin/sh -c \"sleep 3600\"\n\n# Войдите в контейнер\nkubectl exec -it payment-gateway-debug -n production -- /bin/bash\n\n# Проверьте файловую систему, переменные, конфиги\nls -la /etc/config/\ncat /etc/config/app.yaml\nenv | sort\n```  \n**Шаг 6: Мониторинг и алертинг**  \n```bash\n# Создайте PrometheusRule для алертов\ncat > crash-loop-alert.yaml <<EOF\napiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\nname: pod-crash-loop-alert\nnamespace: monitoring\nspec:\ngroups:\n- name: kubernetes.pods\ninterval: 30s\nrules:\n- alert: PodCrashLooping\nexpr: rate(kube_pod_container_status_restarts_total[15m]) > 0\nfor: 5m\nlabels:\nseverity: critical\nannotations:\nsummary: \"Pod {{ \\$labels.namespace }}/{{ \\$labels.pod }} is crash looping\"\ndescription: \"Pod has restarted {{ \\$value }} times in the last 15 minutes\"\nEOF\n\nkubectl apply -f crash-loop-alert.yaml\n```  \n**Шаг 7: Профилактика**  \n- Всегда используйте health checks (liveness + readiness)\n- Устанавливайте адекватные resource requests/limits\n- Тестируйте deployment в staging окружении\n- Используйте init containers для pre-flight checks\n- Включите graceful shutdown в приложении\n- Логируйте подробно startup sequence",
+            "score": 0.957787036895752
+          },
+          {
+            "source": "06-docker-exit-code-137.md",
+            "content": "```text\n[2025-11-28T16:32:18.392Z] INFO Application started successfully\n[2025-11-28T16:32:45.718Z] INFO Processing batch job: 15000 items\n[2025-11-28T16:33:12.847Z] WARN Memory usage: 1.8GB / 2GB\n[2025-11-28T16:33:15.294Z] INFO Loading data into memory...\nContainer killed by Docker runtime\nExit Code: 137\nOOMKilled: true\nMemory limit: 2147483648 (2GB)\nMemory usage at death: 2147483648 (2GB)\nProcess received: SIGKILL\nContainer ID: a8f3c924b871\nImage: company/data-processor:v1.2.3\n```  \n```text\nNov 28 16:34:47 docker-host kernel: [18472.847291] Memory cgroup out of memory: Killed process 18293 (java) total-vm:4194304kB, anon-rss:2097152kB, file-rss:0kB, shmem-rss:0kB\nNov 28 16:34:47 docker-host kernel: [18472.847412] oom_reaper: reaped process 18293 (java), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB\nNov 28 16:34:47 docker-host dockerd[1247]: time=\"2025-11-28T16:34:47.192847Z\" level=warning msg=\"Container a8f3c924b871 failed to exit within 10 seconds of signal SIGTERM - using SIGKILL\"\nNov 28 16:34:47 docker-host dockerd[1247]: time=\"2025-11-28T16:34:47.294102Z\" level=info msg=\"Container a8f3c924b871d4e9f2a6c3b8d7e5f1a0 exited with code 137\"\nDocker container: data-processor\nCgroup: /docker/a8f3c924b871\n```  \n```text\npython3: Fatal Python error: Cannot allocate memory\nStack (most recent call first):\nFile \"/app/processor.py\", line 147, in process_large_file\nFile \"/app/main.py\", line 89, in main\nMemory requested: 512MB\nAvailable memory: 128MB\nContainer memory limit: 2GB\nRSS usage: 2.1GB (exceeded limit)\nSwap disabled\nExit code: 137\nSignal: SIGKILL (9)\nContainer: data-processor-prod\nRestart count: 15\nLast restart: 2025-11-28T16:34:47Z\n```",
+            "score": 0.7067177295684814
+          },
+          {
+            "source": "sre-engineering-handbook.md",
+            "content": "Приложение должно корректно завершать работу.\n- Обработка `SIGTERM`.\n- Завершение текущих запросов перед выходом.\n- Закрытие соединений с БД.",
+            "score": 0.6702156662940979
+          },
+          {
+            "source": "02-k8s-crashloopbackoff.md",
+            "content": "```text\n2025-11-28T14:42:33.192847Z INFO  Starting payment-gateway service v2.4.1\n2025-11-28T14:42:33.294102Z INFO  Loading configuration from /etc/config/app.yaml\n2025-11-28T14:42:33.294847Z ERROR Failed to parse configuration file\nError: yaml: unmarshal errors:\nline 12: cannot unmarshal !!str `${DATAB...` into string\nline 18: field redis.timeout not found in type config.RedisConfig\n2025-11-28T14:42:33.295012Z FATAL Configuration validation failed, exiting\n2025-11-28T14:42:33.295124Z INFO  Shutdown signal received\nthread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: ConfigError', src/main.rs:45:47\nstack backtrace:\n0: rust_begin_unwind\nat /rustc/9b00956e5/library/std/src/panicking.rs:584:5\n1: core::panicking::panic_fmt\nat /rustc/9b00956e5/library/core/src/panicking.rs:142:14\n2: core::result::unwrap_failed\nat /rustc/9b00956e5/library/core/src/result.rs:1814:5\n3: payment_gateway::main\nat ./src/main.rs:45\nProcess exited with code 1\nPod payment-gateway-7d5f8c9b4-xk7m2 in namespace production\nContainer ID: containerd://a8f3c924b871d4e9f2a6c3b8d7e5f1a0c2b9e4d3\nExit Code: 1\n```  \n```text\n[2025-11-28 14:45:18] INFO  [main] com.company.ApiGateway - Starting ApiGateway Application\n[2025-11-28 14:45:19] INFO  [main] o.s.boot.SpringApplication - Spring Boot v3.1.5\n[2025-11-28 14:45:22] ERROR [main] o.s.boot.diagnostics.LoggingFailureAnalysisReporter\n***************************\nAPPLICATION FAILED TO START\n***************************\n\nDescription:\n\nFailed to bind properties under 'spring.datasource.url' to java.lang.String:\n\nProperty: spring.datasource.url\nValue: ${DB_CONNECTION_STRING}\nOrigin: class path resource [application.yml] - 12:9\nReason: Could not resolve placeholder 'DB_CONNECTION_STRING' in value \"${DB_CONNECTION_STRING}\"\n\nAction:\n\nUpdate your application's configuration\nCaused by: java.lang.IllegalArgumentException: Could not resolve placeholder 'DB_CONNECTION_STRING' in value \"${DB_CONNECTION_STRING}\"\nat org.springframework.util.PropertyPlaceholderHelper.parseStringValue(PropertyPlaceholderHelper.java:180)\nat org.springframework.boot.context.properties.source.ConfigurationPropertySourcesPropertyResolver.getProperty(ConfigurationPropertySourcesPropertyResolver.java:82)\nProcess terminated with exit code 1\nContainer api-gateway exited\nReason: Error\nExit Code: 1\nSignal: null\n```  \n```text\nNov 28 14:48:52.441 [worker-thread-8] ERROR i.n.u.ResourceLeakDetector - LEAK: ByteBuf.release() was not called before it's garbage-collected.\nRecent access records:\nCreated at:\nio.netty.buffer.PooledByteBufAllocator.newDirectBuffer(PooledByteBufAllocator.java:341)\nio.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:187)\nNov 28 14:48:53.127 [main] FATAL c.c.s.WebServer - Fatal error during startup\njava.lang.OutOfMemoryError: Java heap space\nat java.base/java.nio.HeapByteBuffer.<init>(HeapByteBuffer.java:61)\nat java.base/java.nio.ByteBuffer.allocate(ByteBuffer.java:335)\nat com.company.service.CacheManager.loadCache(CacheManager.java:94)\nat com.company.service.WebServer.start(WebServer.java:156)\nDumping heap to /tmp/java_pid1.hprof ...\nHeap dump file created [2147483648 bytes in 3.421 secs]\nContainer killed by Kubernetes (OOMKilled)\nExit Code: 137\nSignal: SIGKILL\nReason: OOMKilled\nLast State: Terminated\nReason: OOMKilled\nExit Code: 137\nStarted: 2025-11-28T14:48:49Z\nFinished: 2025-11-28T14:48:53Z\n```",
+            "score": 0.27635204792022705
+          },
+          {
+            "source": "post-mortem-db-failure.md",
+            "content": "28 декабря 2024 года с 14:15 по 15:40 MSK наблюдалась полная недоступность основного инстанса PostgreSQL в кластере Kubernetes (EKS). Это привело к невозможности обработки платежей и авторизации пользователей.",
+            "score": 0.023031966760754585
+          },
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "**Шаг 1: Быстрая проверка upstream доступности**  \n```bash\n# Если upstream service не запущен, запустите его\nsudo systemctl status app-backend\nsudo systemctl start app-backend\nsudo systemctl enable app-backend\n\n# Для PM2 (Node.js)\npm2 list\npm2 restart app-api\n\n# Для Gunicorn (Python)\nsudo systemctl restart gunicorn\n# или\npkill -HUP gunicorn\n\n# Для Java приложений\nsudo systemctl restart tomcat\n# или проверьте через jps\njps -l\n```  \n**Шаг 2: Проверка и исправление Nginx конфигурации**  \nПроверьте upstream блок в конфигурации:  \n```bash\n# Найдите конфигурацию upstream\ngrep -r \"upstream\" /etc/nginx/sites-enabled/\ncat /etc/nginx/sites-enabled/default\n```  \nТипичные проблемы в конфигурации:  \n```nginx\n# Неправильно (если upstream на localhost)\nupstream backend {\nserver 127.0.0.1:8080;\n}\n\n# Проверьте таймауты – возможно они слишком маленькие\nproxy_connect_timeout 5s;   # Слишком мало для медленных апп\nproxy_read_timeout 10s;     # Увеличьте\n\n# Правильная конфигурация с резервированием\nupstream backend {\nserver 10.0.2.15:8080 max_fails=3 fail_timeout=30s;\nserver 10.0.2.16:8080 max_fails=3 fail_timeout=30s backup;\nkeepalive 32;\n}\n\nserver {\nlisten 80;\nserver_name api.example.com;\n\nlocation / {\nproxy_pass http://backend;\nproxy_http_version 1.1;\nproxy_set_header Connection \"\";\nproxy_set_header Host $host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n\n# Увеличьте таймауты\nproxy_connect_timeout 60s;\nproxy_send_timeout 60s;\nproxy_read_timeout 60s;\n\n# Буферизация\nproxy_buffering on;\nproxy_buffer_size 4k;\nproxy_buffers 8 4k;\nproxy_busy_buffers_size 8k;\n\n# Retry\nproxy_next_upstream error timeout http_502 http_503 http_504;\nproxy_next_upstream_tries 2;\n}\n}\n```  \nПримените изменения:  \n```bash\n# Проверьте синтаксис\nsudo nginx -t\n\n# Перезагрузите конфигурацию без downtime\nsudo nginx -s reload\n# или\nsudo systemctl reload nginx\n```  \n**Шаг 3: Решение проблемы с Connection Refused**  \nЕсли upstream не слушает на нужном порту:  \n```bash\n# Найдите, на каком порту слушает приложение\nsudo lsof -i -P -n | grep LISTEN | grep -E 'node|python|java'\n\n# Проверьте bind address (0.0.0.0 vs 127.0.0.1)\n# Если приложение слушает только на 127.0.0.1, а nginx пытается подключиться по 10.x.x.x – будет ошибка\n\n# Исправьте конфигурацию приложения чтобы слушать на 0.0.0.0\n# Например для Node.js/Express:\n# app.listen(8080, '0.0.0.0');\n\n# Для Flask/Gunicorn:\ngunicorn -w 4 -b 0.0.0.0:8080 app:app\n\n# Проверьте файрвол\nsudo ufw status\nsudo iptables -L -n | grep 8080\n\n# Разрешите порт если нужно\nsudo ufw allow 8080/tcp\n```  \n**Шаг 4: Решение проблемы с Timeouts**  \nЕсли upstream обрабатывает запросы слишком долго:  \n```bash\n# Увеличьте таймауты в nginx.conf или в location блоке\nsudo nano /etc/nginx/nginx.conf\n```  \nДобавьте в http блок или location:  \n```nginx\nproxy_connect_timeout 300s;\nproxy_send_timeout 300s;\nproxy_read_timeout 300s;\nsend_timeout 300s;\n```  \nОптимизируйте backend приложение:  \n```bash\n# Проверьте slow queries (для DB-heavy приложений)\n# PostgreSQL:\npsql -c \"SELECT pid, state, query_start, query FROM pg_stat_activity WHERE state != 'idle' ORDER BY query_start LIMIT 10;\"\n\n# MySQL:\nmysql -e \"SHOW FULL PROCESSLIST;\"\n\n# Добавьте индексы, оптимизируйте запросы\n# Масштабируйте horizontally – добавьте больше upstream серверов\n```  \n**Шаг 5: Исправление прав доступа на proxy cache**  \nЕсли ошибка связана с правами:  \n```bash\n# Проверьте владельца директорий\nls -la /var/lib/nginx/\nls -la /var/lib/nginx/proxy/\n\n# Исправьте права\nsudo chown -R www-data:www-data /var/lib/nginx/proxy/\nsudo chmod -R 755 /var/lib/nginx/proxy/\n\n# Или очистите cache\nsudo rm -rf /var/lib/nginx/proxy/*\nsudo systemctl restart nginx\n```  \n**Шаг 6: Мониторинг и алертинг**  \n```bash\n# Настройте мониторинг upstream в nginx\n# Используйте nginx-module-vts или commercial nginx plus\n\n# Добавьте healthcheck скрипт\ncat > /usr/local/bin/nginx_upstream_check.sh <<'EOF'\n#!/bin/bash\nSTATUS=$(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8080/health)\nif [ \"$STATUS\" != \"200\" ]; then\necho \"Upstream is down! Status: $STATUS\"\nsystemctl restart app-backend\ncurl -X POST https://hooks.slack.com/services/YOUR/WEBHOOK \\\n-d '{\"text\":\"Upstream backend restarted due to health check failure\"}'\nfi\nEOF\n\nchmod +x /usr/local/bin/nginx_upstream_check.sh\necho \"*/2 * * * * /usr/local/bin/nginx_upstream_check.sh\" | crontab -\n\n# Настройте Prometheus nginx-exporter\n# https://github.com/nginxinc/nginx-prometheus-exporter\n```  \n**Шаг 7: Постоянное решение**  \n- Используйте connection pooling и keepalive\n- Настройте graceful shutdown для backend приложений\n- Добавьте health check endpoints\n- Используйте load balancing с несколькими upstream серверами\n- Включите circuit breaker pattern на уровне приложения\n- Настройте auto-scaling для backend (k8s HPA, AWS ASG)",
+            "score": 0.014537968672811985
+          },
+          {
+            "source": "migration_todo_list.md",
+            "content": "--------------------------------------------------\n[2025-12-29T18:56:44.972058] ERROR: Connection timeout in 10ms\n```\nsystemctl restart nginx\nprint('Hello world')\n``\n--------------------------------------------------\n[2025-12-29T18:56:44.972061] INFO: Connection timeout in 500ms\n[2025-12-29T18:56:44.972062] ERROR: Connection timeout in 500ms\nВнимание! Не перезагружать сервер без спроса! Короче, тут надо поправить конфиг, а то оно падает постоянно.\n--------------------------------------------------\n--------------------------------------------------\nСмотри, вот лог ошибки, там какой-то ад. Внимание! Не перезагружать сервер без спроса!\n```\ncat /etc/passwd | grep root\nTail -f /var/log/syslog\n``  \n[2025-12-29T18:56:44.972065] INFO: Connection timeout in 500ms\n--------------------------------------------------\n--------------------------------------------------\nЕсли упадет — звоните Васе, он знает что делать. Просто скопируй это в консоль и нажми энтер.\nКонфиг для проды, не трогать! Если упадет — звоните Васе, он знает что делать.\n[2025-12-29T18:56:44.972067] INFO: Connection timeout in 10ms\nSELECT * FROM users WHERE id = 1;\nКонфиг для проды, не трогать! Надо бы перенести это в кубер, но пока пусть тут живет.\nprint('Hello world')\n[2025-12-29T18:56:44.972070] WARN: Connection timeout in 1s\n[2025-12-29T18:56:44.972071] WARN: Connection timeout in 10ms\n[2025-12-29T18:56:44.972072] WARN: Connection timeout in 1s\n```\nconsole.log('debug')\nSELECT * FROM users WHERE id = 1;\n``\n--------------------------------------------------\nТут какие-то старые настройки, я боюсь их трогать. Конфиг для проды, не трогать!\n```\nTail -f /var/log/syslog\ndocker ps -a | grep Exited\n``\n[2025-12-29T18:56:44.972075] ERROR: Connection timeout in 10ms  \n--------------------------------------------------\nНадо бы перенести это в кубер, но пока пусть тут живет. Конфиг для проды, не трогать!\n```\nkubectl get pods --all-namespaces\nconsole.log('debug')\n``\n--------------------------------------------------\n```\ncat /etc/passwd | grep root\niptables -L -n -v\n``\nНадо бы перенести это в кубер, но пока пусть тут живет. Смотри, вот лог ошибки, там какой-то ад.\nЕсли упадет — звоните Васе, он знает что делать. Если упадет — звоните Васе, он знает что делать.\nВнимание! Не перезагружать сервер без спроса! Короче, тут надо поправить конфиг, а то оно падает постоянно.\n```\nkubectl get pods --all-namespaces\nSELECT * FROM users WHERE id = 1;\n``\nТут какие-то старые настройки, я боюсь их трогать. Я не знаю кто это настраивал, но руки бы оторвать.\nTail -f /var/log/syslog\nСделать бэкап перед запуском!!! Внимание! Не перезагружать сервер без спроса!\n[2025-12-29T18:56:44.972081] ERROR: Connection timeout in 500ms\n[2025-12-29T18:56:44.972082] INFO: Connection timeout in 10ms\n[2025-12-29T18:56:44.972083] INFO: Connection timeout in 500ms\nSELECT * FROM users WHERE id = 1;\n[2025-12-29T18:56:44.972085] ERROR: Connection timeout in 1s\nrm -rf /tmp/cache/*\n--------------------------------------------------\nkubectl get pods --all-namespaces\n[2025-12-29T18:56:44.972087] INFO: Connection timeout in 1s\n```\nprint('Hello world')\nprint('Hello world')\n``\n```\nSELECT * FROM users WHERE id = 1;\ndocker ps -a | grep Exited\n``\n--------------------------------------------------\nСмотри, вот лог ошибки, там какой-то ад. Короче, тут надо поправить конфиг, а то оно падает постоянно.\n```\nconsole.log('debug')\nSELECT * FROM users WHERE id = 1;\n``\n--------------------------------------------------\n--------------------------------------------------\n--------------------------------------------------\n[2025-12-29T18:56:44.972090] ERROR: Connection timeout in 1s\nkubectl get pods --all-namespaces\nКороче, тут надо поправить конфиг, а то оно падает постоянно. Если упадет — звоните Васе, он знает что делать.\n```\nprint('Hello world')\ndocker ps -a | grep Exited\n``\nКороче, тут надо поправить конфиг, а то оно падает постоянно. Смотри, вот лог ошибки, там какой-то ад.\nПросто скопируй это в консоль и нажми энтер. Смотри, вот лог ошибки, там какой-то ад.\n[2025-12-29T18:56:44.972094] WARN: Connection timeout in 500ms\n[2025-12-29T18:56:44.972095] ERROR: Connection timeout in 1s\nЭто временное решение (работает уже 3 года). Если упадет — звоните Васе, он знает что делать.",
+            "score": 0.012693190015852451
+          },
+          {
+            "source": "02-k8s-crashloopbackoff.md",
+            "content": "Pod в кластере Kubernetes постоянно перезапускается и не может выйти в состояние Running. Количество рестартов растет экспоненциально. В веб-интерфейсе (Dashboard, Lens, K9s) статус пода отображается как CrashLoopBackOff с красной иконкой. Сервис становится недоступен, пользователи получают 503 Service Unavailable. Время между рестартами увеличивается (backoff: 10s, 20s, 40s, 80s...). Ресурсы cluster могут быть перегружены из-за постоянных попыток рестарта.",
+            "score": 0.0073934332467615604
+          },
+          {
+            "source": "06-docker-exit-code-137.md",
+            "content": "Docker контейнер внезапно останавливается с exit code 137. В логах контейнера может не быть явной ошибки. Приложение работает нормально, затем резко падает. Docker inspect показывает OOMKilled: true. Проблема периодически повторяется. Контейнер использует больше памяти, чем выделенный лимит.",
+            "score": 0.002165494253858924
+          },
+          {
+            "source": "k8s-dashboard-security.md",
+            "content": "Ограничьте доступ только для корпоративной VPN.  \n```yaml\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\nannotations:\nnginx.ingress.kubernetes.io/whitelist-source-range: \"10.0.0.0/8, 172.16.0.0/12\"\n```",
+            "score": 0.0017620808212086558
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "k8s",
+            "title": "02-k8s-crashloopbackoff.md",
+            "source_file": "02-k8s-crashloopbackoff.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Kubernetes: CrashLoopBackOff > Решение"
+          }
+        ],
+        "latency_sec": 5.646248791133985,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 0.7046647500246763,
+          "retrieve_sec": 0.19972929102368653,
+          "rerank_sec": 3.7543126250384375,
+          "llm_analysis_sec": 0.004310250049456954,
+          "llm_generation_sec": 0.9832318749977276,
+          "total_sec": 5.646248791133985
+        }
+      },
+      "keywords": [
+        "143",
+        "SIGTERM"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "02-k8s-crashloopbackoff.md"
+        ]
+      }
+    },
+    {
+      "id": "q_007",
+      "question": "Какой паттерн мониторинга (RED или USE) SRE Handbook рекомендует для пользовательских метрик сервисов?",
+      "expected_answer": "SRE Handbook рекомендует паттерн **RED** для метрик сервисов и API. В отличие от USE (ориентированного на ресурсы), RED фокусируется на пользовательском опыте: **R**ate (количество запросов в секунду), **E**rrors (количество ошибок) и **D**uration (время обработки запроса/latency).",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "SRE Handbook использует паттерн RED для пользовательских метрик сервисов: Rate (запросы/сек), Errors (ошибки/сек), Duration (длительность) [1].",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "sre-engineering-handbook.md",
+            "content": "Все сервисы должны отдавать `/metrics` в формате Prometheus.\n- **RED Pattern**: Rate (запросы/сек), Errors (ошибки/сек), Duration (длительность).\n- **USE Pattern**: Utilization (загрузка), Saturation (насыщение), Errors (ошибки).",
+            "score": 0.973841667175293
+          },
+          {
+            "source": "sre-engineering-handbook.md",
+            "content": "Мы не стремимся к 100% доступности. Наша цель — доступность, достаточная для пользователя.\n- **SLI (Service Level Indicator)**: Конкретная метрика (например, Latency 95-й перцентиль).\n- **SLO (Service Level Objective)**: Целевое значение SLI (например, < 200ms для 99% запросов).\n- **Error Budget**: 1 - SLO. Если бюджет исчерпан, все изменения (feature code) замораживаются, и команда фокусируется только на надежности.",
+            "score": 0.045035459101200104
+          },
+          {
+            "source": "adr-005-redis-cache.md",
+            "content": "- **Производительность**: Redis обеспечивает суб-миллисекундный отклик при правильной настройке.\n- **Библиотеки для Go**: Отличная поддержка библиотекой `go-redis`, которая реализует все необходимые паттерны (circuit breaker, pooling).\n- **Pub/Sub**: Нам потребуется механизм инвалидации кеша между экземплярами сервисов, и Redis Pub/Sub идеально подходит для этой задачи.",
+            "score": 0.034426189959049225
+          },
+          {
+            "source": "k8s-monitoring-setup.md",
+            "content": "- `kubectl get servicemonitors -n monitoring` — просмотр настроенных целей сбора метрик.\n- `kubectl top nodes` — быстрая проверка ресурсов через Metrics Server.",
+            "score": 0.016481565311551094
+          },
+          {
+            "source": "go-performance.md",
+            "content": "Сбор и анализ метрик в реальном времени позволяет находить утечки памяти и неоптимальные участки кода еще до того, как они станут проблемой для пользователей.  \nДля начала подключите стандартные метрики `prometheus/client_golang`:  \n```go\nimport (\n\"github.com/prometheus/client_golang/prometheus/promhttp\"\n\"net/http\"\n)\n\nfunc main() {\nhttp.Handle(\"/metrics\", promhttp.Handler())\nhttp.ListenAndServe(\":2112\", nil)\n}\n```  \nОдна из самых полезных метрик — `go_memstats_heap_inuse_bytes`. Если этот график постоянно растет без возврата к базовому уровню, у вас есть утечка памяти (memory leak).",
+            "score": 0.009648289531469345
+          },
+          {
+            "source": "07-elasticsearch-cluster-red.md",
+            "content": "Elasticsearch cluster health показывает RED status. Поиск возвращает partial results или ошибки. Index операции могут падать. Kibana отображает предупреждение о проблемах с кластером. Некоторые данные недоступны. Monitoring показывает unassigned shards.",
+            "score": 0.008402216248214245
+          },
+          {
+            "source": "analytics-api-docs.md",
+            "content": "| Метод | Путь | Описание |\n| :--- | :--- | :--- |\n| `POST` | `/ingest` | Прием событий для обработки |\n| `GET`  | `/health` | Проверка состояния (Liveness) |\n| `GET`  | `/metrics`| Метрики в формате Prometheus |",
+            "score": 0.005177221726626158
+          },
+          {
+            "source": "nginx-emergency.md",
+            "content": "Данный runbook предназначен для on-call инженеров. Используйте его, если мониторинг сообщает о 5xx ошибках или недоступности сайта.",
+            "score": 0.005155622493475676
+          },
+          {
+            "source": "adr-009-grpc-standard.md",
+            "content": "Все новые сервисы обязаны использовать gRPC. Старые сервисы переводятся на gRPC по мере планового рефакторинга.",
+            "score": 0.003418347565457225
+          },
+          {
+            "source": "19-microservice-notifications.md",
+            "content": "- **Retry‑logic** с экспоненциальным бэкофом через RQ‑retry.\n- **Rate limiting** на уровне провайдера (10 запросов/сек).\n- **Метрики** `notifications_sent_total` и `notifications_failed_total` экспортируются в Prometheus.",
+            "score": 0.003277889220044017
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "sre",
+            "title": "sre-engineering-handbook.md",
+            "source_file": "sre-engineering-handbook.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "SRE Engineering Handbook: Глобальные стандарты платформы > 2. Стандарты наблюдаемости (Observability) > 2.1. Метрики (Prometheus)"
+          }
+        ],
+        "latency_sec": 7.031847791047767,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 1.66768158308696,
+          "retrieve_sec": 0.9054604589473456,
+          "rerank_sec": 3.1104687500046566,
+          "llm_analysis_sec": 0.0013225410366430879,
+          "llm_generation_sec": 1.3469144579721615,
+          "total_sec": 7.031847791047767
+        }
+      },
+      "keywords": [
+        "RED",
+        "Rate",
+        "Errors",
+        "Duration"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "sre-engineering-handbook.md"
+        ]
+      }
+    },
+    {
+      "id": "q_008",
+      "question": "Какую команду SQL нужно выполнить на MySQL слейве для запуска процесса репликации?",
+      "expected_answer": "На слейве MySQL необходимо выполнить команду `START SLAVE;` (или `START REPLICA;` в новых версиях). Эта команда запускает потоки `IO_THREAD` (чтение binlog мастера) и `SQL_THREAD` (применение событий). Перед этим слейв должен быть сконфигурирован через `CHANGE MASTER TO`.",
+      "source_file": "",
+      "difficulty": "hard",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "mysql -u root -p -e \"START SLAVE;\" [1].",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "```bash\nmysql -u root -p -e \"CHANGE MASTER TO \\\nMASTER_HOST='master_ip', \\\nMASTER_USER='repl', \\\nMASTER_PASSWORD='StrongPass123', \\\nMASTER_AUTO_POSITION=1;\"\n```  \n```bash\n# Запустите репликацию\nmysql -u root -p -e \"START SLAVE;\"\n```",
+            "score": 0.9783111214637756
+          },
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "1. Выполните `SELECT @@global.gtid_executed;` на мастере и слейве – они должны совпадать после синхронизации.\n2. Вставьте тестовую запись на мастере (`INSERT INTO test (msg) VALUES ('replication test');`) и проверьте её наличие на слейве.\n3. Убедитесь, что в логах `/var/log/mysql/error.log` нет ошибок `Slave_IO`/`Slave_SQL`.\n4. При необходимости выполните `STOP SLAVE;` и `RESET SLAVE ALL;` для переинициализации.",
+            "score": 0.5045188665390015
+          },
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "- ОС: Linux (Ubuntu 20.04+, CentOS 8+)\n- MySQL Server 8.0+\n- Доступ к сети между мастером и слейвами (порт 3306)\n- Пользователь `repl` с правом REPLICATION SLAVE на мастере",
+            "score": 0.2589460611343384
+          },
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "```bash\n# На мастере, от имени root MySQL\nmysql -u root -p -e \"CREATE USER 'repl'@'%' IDENTIFIED BY 'StrongPass123';\"\nmysql -u root -p -e \"GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';\"\nmysql -u root -p -e \"FLUSH PRIVILEGES;\"\n```  \n```ini\n# my.cnf (мастер)\n[mysqld]\nserver-id = 1                 # уникальный ID мастера\nlog_bin = mysql-bin           # включить бинарный лог\nbinlog_format = ROW          # ROW‑формат для GTID\ngtid_mode = ON\nenforce_gtid_consistency = ON\nlog_slave_updates = ON\n```  \nПерезапустите MySQL:  \n```bash\nsudo systemctl restart mysql\n```",
+            "score": 0.24987298250198364
+          },
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "```bash\n# На слейве, установите тот же my.cnf, но с другим server-id\nsudo cp /etc/mysql/my.cnf /etc/mysql/my.cnf.bak\n```  \n```ini\n# my.cnf (слейв)\n[mysqld]\nserver-id = 2                 # уникальный ID слейва\nrelay_log = /var/log/mysql/mysql-relay-bin.log\nlog_bin = mysql-bin\nbinlog_format = ROW\ngtid_mode = ON\nenforce_gtid_consistency = ON\nlog_slave_updates = ON\nread_only = ON\n```  \nПерезапустите MySQL на слейве:  \n```bash\nsudo systemctl restart mysql\n```",
+            "score": 0.07633889466524124
+          },
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "```bash\nmysql -u root -p -e \"SHOW SLAVE STATUS\\G\" | grep -E 'Slave_IO_Running|Slave_SQL_Running|Seconds_Behind_Master'\n```  \nОжидается `Yes` для обоих и небольшое значение `Seconds_Behind_Master`.",
+            "score": 0.04063810408115387
+          },
+          {
+            "source": "db-migration-rds.md",
+            "content": "1. Создайте **Source Endpoint** (MySQL).\n2. Создайте **Target Endpoint** (RDS PostgreSQL).\n3. Создайте **Replication Task** с типом `Full load and ongoing replication`.",
+            "score": 0.029113350436091423
+          },
+          {
+            "source": "14-mysql-replication-guide.md",
+            "content": "Репликация MySQL позволяет создавать копию данных в режиме реального времени, повышая отказоустойчивость и масштабируемость чтения. В продакшн‑окружении обычно используют асинхронную репликацию с GTID, что упрощает переключения мастера.",
+            "score": 0.02814682386815548
+          },
+          {
+            "source": "mongodb-to-k8s-migration.md",
+            "content": "- Проверить статус репликации: `rs.status()`\n- Проверить наличие индексов.\n- Запустить синтетические тесты на чтение/запись.  \n> [!CAUTION]\n> Перед началом миграции переведите приложение в режим \"Read-Only\", чтобы избежать расхождения данных.",
+            "score": 0.02144809626042843
+          },
+          {
+            "source": "11-postgresql-replication-guide.md",
+            "content": "- ОС: Linux (Ubuntu 20.04+, CentOS 8+)\n- PostgreSQL: версии 12‑15\n- Доступ к сети между мастером и репликами (порт 5432)\n- Пользователь `replicator` с правом REPLICATION на мастере",
+            "score": 0.019797401502728462
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "mysql",
+            "title": "14-mysql-replication-guide.md",
+            "source_file": "14-mysql-replication-guide.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Настройка репликации MySQL > Пошаговая инструкция > Шаг 4: Подключите слейв к мастеру"
+          }
+        ],
+        "latency_sec": 4.235029042931274,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 1.524145208997652,
+          "retrieve_sec": 0.4362272920552641,
+          "rerank_sec": 1.1047249169787392,
+          "llm_analysis_sec": 0.000317040947265923,
+          "llm_generation_sec": 1.1696145839523524,
+          "total_sec": 4.235029042931274
+        }
+      },
+      "keywords": [
+        "START SLAVE"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "14-mysql-replication-guide.md"
+        ]
+      }
+    },
+    {
+      "id": "q_009",
+      "question": "Какой параметр sysctl рекомендуется увеличить для предотвращения отбрасывания входящих SYN-пакетов при высокой нагрузке на HAProxy?",
+      "expected_answer": "Рекомендуется увеличить параметр ядра `net.core.somaxconn` (например, до 65535). Этот параметр определяет максимальный размер очереди соединений, ожидающих принятия (accept) сокетом. При его нехватке новые TCP-соединения могут сбрасываться.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "В базе знаний отсутствует информация по данному запросу.",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "haproxy-503-troubleshoot.md",
+            "content": "#### 1. Тюнинг параметров ядра (Sysctl)\nДля работы с большим количеством одновременных соединений необходимо увеличить лимиты в `/etc/sysctl.conf`.  \n```text\n# ПРЕДУПРЕЖДЕНИЕ: Параметр net.ipv4.tcp_tw_recycle УСТАРЕЛ и удален в ядрах 4.12+\n# net.ipv4.tcp_tw_recycle = 1  <-- НЕ ИСПОЛЬЗОВАТЬ\n\nnet.ipv4.ip_local_port_range = 1024 65000\nnet.ipv4.tcp_tw_reuse = 1\nnet.core.somaxconn = 65535\n```  \n#### 2. Конфигурация HAProxy\nУвеличьте значение `maxconn` в глобальной секции и в секции defaults.  \n```haproxy\nglobal\nmaxconn 100000\n\ndefaults\nmaxconn 100000\ntimeout connect 5s\ntimeout client 50s\ntimeout server 50s\n```  \n> [!NOTE]\n> Убедитесь, что лимиты `ulimit -n` для пользователя haproxy позволяют открывать нужное количество файлов.  \nСмотрите также: [Оптимизация Nginx](nginx-tuning-compression.md)",
+            "score": 0.9315727949142456
+          },
+          {
+            "source": "linux-network-performance-tuning.md",
+            "content": "```bash\nsysctl -p\n```  \n> [!TIP]\n> Настройки `sysctl` действуют глобально. Если на сервере запущены контейнеры, некоторые параметры (например, из неймспейса `net.ipv4.*`) могут быть переопределены внутри контейнера, если используется `network mode: bridge`.",
+            "score": 0.3788452446460724
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Для HAProxy крайне важны параметры сетевого стека.  \n```bash\n# Увеличение очереди входящих соединений\nsysctl -w net.core.somaxconn=65535\n# Увеличение диапазона портов для коннекта к бекендам\nsysctl -w net.ipv4.ip_local_port_range=\"1024 65000\"\n```  \n![Схема распределения трафика](path/to/haproxy_l7_flow.png)",
+            "score": 0.10296158492565155
+          },
+          {
+            "source": "linux-network-performance-tuning.md",
+            "content": "При высокой нагрузке очереди сетевой карты или ядра могут переполниться.",
+            "score": 0.08970087021589279
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Это самый надежный способ. HAProxy сам добавляет cookie в ответ.  \n```haproxy\nbackend app-servers\nbalance roundrobin\ncookie SRVNAME insert indirect nocache\nserver s1 10.0.0.1:80 check cookie s1\nserver s2 10.0.0.2:80 check cookie s2\n```  \n**Типичные ошибки**:\n- **nocache**: Если этого флага нет, промежуточные прокси могут закешировать cookie сессии.\n- **indirect**: Позволяет не отправлять cookie, если у клиента она уже есть.",
+            "score": 0.067977175116539
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "HAProxy предоставляет мощный инструмент для просмотра состояния в реальном времени.  \n```bash\n# Просмотр всех сессий на конкретном бекенде\necho \"show sess\" | socat stdio /var/run/haproxy.sock\n\n# Изменение веса сервера без рестарта\necho \"set server backend-app/s1 weight 50%\" | socat stdio /var/run/haproxy.sock\n\n# Просмотр содержимого stick-таблицы\necho \"show table dynamic-backend\" | socat stdio /var/run/haproxy.sock\n```",
+            "score": 0.06575310230255127
+          },
+          {
+            "source": "linux-network-performance-tuning.md",
+            "content": "Слишком частые прерывания CPU от сетевой карты могут привести к высокому `system cpu load`.\n```bash\n# Адаптивное управление прерываниями\nethtool -C eth0 adaptive-rx on adaptive-tx on\n```",
+            "score": 0.05212866887450218
+          },
+          {
+            "source": "sre-engineering-handbook.md",
+            "content": "- Всегда используйте L7 балансировку для gRPC.\n- [Глубокий тюнинг HAProxy](haproxy-l7-deep-dive.md)\n- [Оптимизация сетевого стека Linux](linux-network-performance-tuning.md)",
+            "score": 0.0443783774971962
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Используются, когда нельзя менять заголовки ответа.  \n```haproxy\nbackend dynamic-backend\nstick-table type ip size 1m expire 30m\nstick on src\nserver s1 10.0.0.1:80 check\n```  \n> [!WARNING]\n> Stick-таблицы хранятся в памяти одного процесса. При перезагрузке HAProxy все привязки будут сброшены, если не настроена репликация через `peers`.",
+            "score": 0.038856390863657
+          },
+          {
+            "source": "linux-network-performance-tuning.md",
+            "content": "Используйте `netstat -s` или `nstat` для поиска проблем:  \n- `TcpExtListenOverflows`: Очередь `accept()` переполнена (увеличьте `somaxconn`).\n- `TcpExtListenDrops`: Ядро отбросило пакеты из-за нехватки ресурсов.\n- `TcpRetransSegs`: Процент ретрансмиссий (в норме < 1%).",
+            "score": 0.03088041953742504
+          }
+        ],
+        "footnotes": [],
+        "latency_sec": 7.9538785830372944,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 2.3815168750006706,
+          "retrieve_sec": 0.24776349996682256,
+          "rerank_sec": 4.0643727499991655,
+          "llm_analysis_sec": 0.0010328750358894467,
+          "llm_generation_sec": 1.2591925830347463,
+          "total_sec": 7.9538785830372944
+        }
+      },
+      "keywords": [
+        "net.core.somaxconn"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "haproxy-l7-deep-dive.md"
+        ]
+      }
+    },
+    {
+      "id": "q_010",
+      "question": "Что означает флаг завершения сессии 'sH--' в логах HAProxy?",
+      "expected_answer": "Флаг `sH--` расшифровывается так: 's' указывает, что инициатором разрыва соединения был **Server**, а 'H' означает, что это произошло на этапе получения или обработки заголовков (**Headers**). То есть сервер закрыл соединение или перестал отвечать до того, как HAProxy получил полные заголовки ответа.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "Флаг завершения сессии `sH--` означает, что сервер закрыл соединение до обработки заголовков [1].",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "1. **Check Timeout**: Проверьте, не слишком ли агрессивны проверки здоровья (health checks).\n- `inter 2s fall 3 rise 2` — это 6 секунд до признания сервера \"падшим\".\n2. **MaxConn**: Проверьте, не упираетесь ли вы в лимиты `maxconn` в секции `global`.\n3. **Internal Errors**: Ищите в логах флаги завершения сессии.\n- `sH--`: Сервер закрыл соединение до обработки заголовков.\n- `cH--`: Тайм-аут клиента.",
+            "score": 0.942338228225708
+          },
+          {
+            "source": "haproxy-503-troubleshoot.md",
+            "content": "В логах HAProxy наблюдается большое количество сообщений `sC--` (server connection failure) или `sD--` (server session termination). Пользователи жалуются на периодические ошибки 503 Service Unavailable.",
+            "score": 0.9102585911750793
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Это самый надежный способ. HAProxy сам добавляет cookie в ответ.  \n```haproxy\nbackend app-servers\nbalance roundrobin\ncookie SRVNAME insert indirect nocache\nserver s1 10.0.0.1:80 check cookie s1\nserver s2 10.0.0.2:80 check cookie s2\n```  \n**Типичные ошибки**:\n- **nocache**: Если этого флага нет, промежуточные прокси могут закешировать cookie сессии.\n- **indirect**: Позволяет не отправлять cookie, если у клиента она уже есть.",
+            "score": 0.03811909630894661
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Включите расширенное логирование HTTP запросов, чтобы видеть, какой ACL сработал.  \n```haproxy\nlog-format \"%ci:%cp [%tr] %ft %b/%s %TR/%Tw/%Tc/%Tr/%Ta %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r\"\n```",
+            "score": 0.014896521344780922
+          },
+          {
+            "source": "haproxy-503-troubleshoot.md",
+            "content": "#### 1. Тюнинг параметров ядра (Sysctl)\nДля работы с большим количеством одновременных соединений необходимо увеличить лимиты в `/etc/sysctl.conf`.  \n```text\n# ПРЕДУПРЕЖДЕНИЕ: Параметр net.ipv4.tcp_tw_recycle УСТАРЕЛ и удален в ядрах 4.12+\n# net.ipv4.tcp_tw_recycle = 1  <-- НЕ ИСПОЛЬЗОВАТЬ\n\nnet.ipv4.ip_local_port_range = 1024 65000\nnet.ipv4.tcp_tw_reuse = 1\nnet.core.somaxconn = 65535\n```  \n#### 2. Конфигурация HAProxy\nУвеличьте значение `maxconn` в глобальной секции и в секции defaults.  \n```haproxy\nglobal\nmaxconn 100000\n\ndefaults\nmaxconn 100000\ntimeout connect 5s\ntimeout client 50s\ntimeout server 50s\n```  \n> [!NOTE]\n> Убедитесь, что лимиты `ulimit -n` для пользователя haproxy позволяют открывать нужное количество файлов.  \nСмотрите также: [Оптимизация Nginx](nginx-tuning-compression.md)",
+            "score": 0.012350295670330524
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Для HAProxy крайне важны параметры сетевого стека.  \n```bash\n# Увеличение очереди входящих соединений\nsysctl -w net.core.somaxconn=65535\n# Увеличение диапазона портов для коннекта к бекендам\nsysctl -w net.ipv4.ip_local_port_range=\"1024 65000\"\n```  \n![Схема распределения трафика](path/to/haproxy_l7_flow.png)",
+            "score": 0.011471743695437908
+          },
+          {
+            "source": "financial-gateway-api-docs.md",
+            "content": "Все данные карт должны быть токенизированы. Передача \"голых\" номеров карт (PAN) через API строго запрещена и приведет к немедленной блокировке Merchant ID.  \n> [!IMPORTANT]\n> При возникновении ошибок 503 или таймаутов проверьте состояние соединений в [HAProxy](haproxy-l7-deep-dive.md).",
+            "score": 0.008294202387332916
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Используются, когда нельзя менять заголовки ответа.  \n```haproxy\nbackend dynamic-backend\nstick-table type ip size 1m expire 30m\nstick on src\nserver s1 10.0.0.1:80 check\n```  \n> [!WARNING]\n> Stick-таблицы хранятся в памяти одного процесса. При перезагрузке HAProxy все привязки будут сброшены, если не настроена репликация через `peers`.",
+            "score": 0.0061134882271289825
+          },
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "Если у вас есть `/api` и `/api/v2`, HAProxy может выбрать первое правило, если оно стоит выше.  \n```haproxy\nfrontend main-https\nbind *:443 ssl crt /etc/ssl/certs/\n\n# ПЛОХО: Запрос к /api/v2/users попадет в backend-v1\nuse_backend backend-v1 if { path_beg /api }\nuse_backend backend-v2 if { path_beg /api/v2 }\n```  \n**Решение**: Всегда располагайте более специфичные правила выше или используйте точное соответствие.  \n```haproxy\n# ХОРОШО: Проверка самого длинного пути в первую очередь\nuse_backend backend-v2 if { path_beg /api/v2 }\nuse_backend backend-v1 if { path_beg /api }\n```",
+            "score": 0.005420574452728033
+          },
+          {
+            "source": "cassandra-dr-runbook.md",
+            "content": "1. **T+0**: Обнаружение сбоя, созыв On-call команды.\n2. **T+15m**: Объявление статуса \"Disaster\" в канале #incidents.\n3. **T+30m**: Принятие решения о способе восстановления (A или B).\n4. **T+3h**: Завершение копирования данных.\n5. **T+4h**: Открытие трафика для потребителей (Read-only вначале).",
+            "score": 0.003946133889257908
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "haproxy",
+            "title": "haproxy-l7-deep-dive.md",
+            "source_file": "haproxy-l7-deep-dive.md",
+            "quote": "",
+            "source_type": "doc",
+            "header_path": "Устранение сложных проблем маршрутизации на уровне L7 в HAProxy > 4. Чек-лист при возникновении 502/503"
+          }
+        ],
+        "latency_sec": 7.4590661260299385,
+        "answer_type": "final_answer",
+        "trace": [],
+        "timings": {
+          "query_expansion_sec": 1.5034079171018675,
+          "retrieve_sec": 1.3439968340098858,
+          "rerank_sec": 3.3411217919783667,
+          "llm_analysis_sec": 0.005664833006449044,
+          "llm_generation_sec": 1.2648747499333695,
+          "total_sec": 7.4590661260299385
+        }
+      },
+      "keywords": [
+        "server",
+        "headers",
+        "закрыл соединение"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "haproxy-l7-deep-dive.md"
+        ]
+      }
+    }
+  ]
+}

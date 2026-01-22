@@ -13,5 +13,3 @@ __all__ = [
     "CitationReport",
     "CitationFootnoteBuilder",
 ]
-
-

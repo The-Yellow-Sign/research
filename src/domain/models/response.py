@@ -28,4 +28,3 @@ class SourceDoc(BaseModel):
     source_file: str
     header_path: str
     content: str
-

@@ -11,11 +11,10 @@ import logging
 
 from sentence_transformers import SentenceTransformer
 
-from src.config import EMBEDDING_MODEL_NAME, SOURCE_DIR
+from src.config import settings
 from src.config.logging_config import setup_logging
 from src.infrastructure import process_specific_files
 from src.infrastructure.persistence import (
-    OPENSEARCH_FILES_INDEX,
     delete_by_source_file,
     detect_file_changes,
     ensure_milvus_collection,
@@ -29,32 +28,45 @@ from src.infrastructure.persistence.splitter import process_specific_files_async
 logger = logging.getLogger(__name__)
 
 
-def run_ingest(force_reindex: bool = False) -> None:
-    """Запускает синхронный пайплайн инкрементальной индексации.
-
-    Использует GLiNER + regex для извлечения метаданных.
-    Быстрее async-версии, но с меньшим качеством entities.
-
-    Args:
-        force_reindex: Очистить реестр и переиндексировать все файлы.
-
-    """
+def _init_ingest_clients():
+    """Инициализирует клиенты и модель для индексации."""
     setup_logging()
-    logger.info("Загрузка модели эмбеддингов: %s", EMBEDDING_MODEL_NAME)
-    model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+    logger.info("Загрузка модели эмбеддингов: %s", settings.models.embedding)
+    model = SentenceTransformer(settings.models.embedding)
 
     os_client = init_opensearch()
     milvus_collection = ensure_milvus_collection(model.get_sentence_embedding_dimension())
+    return model, os_client, milvus_collection
 
+
+def _handle_force_reindex(os_client, force_reindex: bool, label_prefix: str = "") -> None:
+    """Очищает реестр файлов при необходимости."""
     if force_reindex:
-        logger.info("Принудительная переиндексация: очистка реестра файлов")
+        logger.info("%sПринудительная переиндексация: очистка реестра файлов", label_prefix)
         try:
-            os_client.indices.delete(index=OPENSEARCH_FILES_INDEX, ignore=[404])
+            os_client.indices.delete(index=settings.opensearch_files_index, ignore=[404])
             ensure_opensearch_files_index(os_client)
         except Exception as e:
             logger.error("Ошибка при очистке реестра файлов: %s", e)
 
-    new_or_modified, unchanged, deleted_paths = detect_file_changes(os_client, SOURCE_DIR)
+
+def _get_rel_paths(files):
+    """Преобразует список путей в относительные для индекса."""
+    rel_paths = []
+    for f in files:
+        try:
+            rel_paths.append(str(f.relative_to(settings.source_dir)))
+        except ValueError:
+            rel_paths.append(f.name)
+    return rel_paths
+
+
+def run_ingest(force_reindex: bool = False) -> None:
+    """Запускает синхронный пайплайн инкрементальной индексации."""
+    model, os_client, milvus_collection = _init_ingest_clients()
+    _handle_force_reindex(os_client, force_reindex)
+
+    new_or_modified, unchanged, deleted_paths = detect_file_changes(os_client, settings.source_dir)
 
     if not new_or_modified and not deleted_paths:
         logger.info("Нет изменений. Индексация не требуется.")
@@ -64,50 +76,22 @@ def run_ingest(force_reindex: bool = False) -> None:
         delete_by_source_file(os_client, milvus_collection, deleted_paths)
 
     if new_or_modified:
-        modified_rel_paths = []
-        for f in new_or_modified:
-            try:
-                modified_rel_paths.append(str(f.relative_to(SOURCE_DIR)))
-            except ValueError:
-                modified_rel_paths.append(f.name)
-
+        modified_rel_paths = _get_rel_paths(new_or_modified)
         delete_by_source_file(os_client, milvus_collection, modified_rel_paths)
 
         parents, children = process_specific_files(new_or_modified)
         index_data(os_client, milvus_collection, model, parents, children)
 
-    all_current_files = new_or_modified
-    update_file_hashes(os_client, all_current_files, deleted_paths)
-
+    update_file_hashes(os_client, new_or_modified, deleted_paths)
     logger.info("Инкрементальная загрузка завершена успешно")
 
 
 async def run_ingest_async(force_reindex: bool = False) -> None:
-    """Запускает асинхронный пайплайн с LLM-обогащением метаданных.
+    """Запускает асинхронный пайплайн с LLM-обогащением метаданных."""
+    model, os_client, milvus_collection = _init_ingest_clients()
+    _handle_force_reindex(os_client, force_reindex, "LLM enrichment: ")
 
-    При слабых результатах GLiNER/regex вызывает LLM для
-    качественного извлечения entities. Медленнее, но точнее.
-
-    Args:
-        force_reindex: Очистить реестр и переиндексировать все файлы.
-
-    """
-    setup_logging()
-    logger.info("Загрузка модели эмбеддингов: %s", EMBEDDING_MODEL_NAME)
-    model = SentenceTransformer(EMBEDDING_MODEL_NAME)
-
-    os_client = init_opensearch()
-    milvus_collection = ensure_milvus_collection(model.get_sentence_embedding_dimension())
-
-    if force_reindex:
-        logger.info("Принудительная переиндексация с LLM enrichment: очистка реестра файлов")
-        try:
-            os_client.indices.delete(index=OPENSEARCH_FILES_INDEX, ignore=[404])
-            ensure_opensearch_files_index(os_client)
-        except Exception as e:
-            logger.error("Ошибка при очистке реестра файлов: %s", e)
-
-    new_or_modified, unchanged, deleted_paths = detect_file_changes(os_client, SOURCE_DIR)
+    new_or_modified, unchanged, deleted_paths = detect_file_changes(os_client, settings.source_dir)
 
     if not new_or_modified and not deleted_paths:
         logger.info("Нет изменений. Индексация не требуется.")
@@ -117,22 +101,14 @@ async def run_ingest_async(force_reindex: bool = False) -> None:
         delete_by_source_file(os_client, milvus_collection, deleted_paths)
 
     if new_or_modified:
-        modified_rel_paths = []
-        for f in new_or_modified:
-            try:
-                modified_rel_paths.append(str(f.relative_to(SOURCE_DIR)))
-            except ValueError:
-                modified_rel_paths.append(f.name)
-
+        modified_rel_paths = _get_rel_paths(new_or_modified)
         delete_by_source_file(os_client, milvus_collection, modified_rel_paths)
 
         logger.info("Индексация с LLM enrichment для %d файлов...", len(new_or_modified))
         parents, children = await process_specific_files_async(new_or_modified)
         index_data(os_client, milvus_collection, model, parents, children)
 
-    all_current_files = new_or_modified
-    update_file_hashes(os_client, all_current_files, deleted_paths)
-
+    update_file_hashes(os_client, new_or_modified, deleted_paths)
     logger.info("Индексация с LLM enrichment завершена успешно")
 
 

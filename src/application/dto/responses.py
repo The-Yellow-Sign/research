@@ -6,7 +6,7 @@
 - ChatResponse — ответ для чат-взаимодействий
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -32,18 +32,25 @@ class Footnote(BaseModel):
     """Одна footnote-ссылка на источник.
 
     Атрибуты:
-        doc_id: ID документа ([doc:X] в тексте ответа).
-        service: Название сервиса (postgres, k8s, nginx).
-        title: Заголовок/путь документа.
-        source_file: Путь к исходному файлу.
+        id: Порядковый номер ссылки в ответе ([1], [2], ...).
+        source_type: Тип источника ("doc" или "web").
+        title: Заголовок/путь документа или название страницы.
+        source: Путь к файлу (для doc) или URL (для web).
+        quote: Preview цитаты (~200 символов).
+        service: Название сервиса (postgres, k8s, nginx) — только для doc.
+        header_path: Путь к секции документа — только для doc.
+        url: Полный URL — только для web.
 
     """
 
-    doc_id: int
-    service: str
+    id: int
+    source_type: Literal["doc", "web"]
     title: str
-    source_file: str
+    source: str
     quote: str
+    service: str | None = None
+    header_path: str | None = None
+    url: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -69,5 +76,4 @@ class ChatResponse(BaseModel):
     timings: dict[str, float] | None = None
     citation_metrics: CitationMetrics | None = None
     footnotes: list[Footnote] | None = None
-
-
+    trace: dict[str, Any] | None = None

@@ -13,10 +13,6 @@ from src.domain.services.chunking import (
     parse_frontmatter,
     process_markdown_ast,
 )
-from src.domain.services.metadata_extractor import (
-    extract_metadata,
-    is_gliner_available,
-)
 
 __all__ = [
     "parse_frontmatter",
@@ -25,6 +21,4 @@ __all__ = [
     "build_header_path",
     "process_markdown_ast",
     "build_vector_text",
-    "extract_metadata",
-    "is_gliner_available",
 ]

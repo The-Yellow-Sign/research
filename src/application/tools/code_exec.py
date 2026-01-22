@@ -4,6 +4,8 @@
 """
 
 import ast
+import asyncio
+import builtins
 import logging
 import sys
 from io import StringIO
@@ -15,6 +17,7 @@ from src.application.tools.tool_base import (
     ToolParameterType,
     ToolResult,
 )
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +48,10 @@ ALLOWED_BUILTINS = {
     "zip": zip,
 }
 
-ALLOWED_MODULES = {"json", "re", "math", "datetime", "collections", "itertools"}
+ALLOWED_MODULES = {"json", "re", "math", "datetime", "collections", "itertools", "time"}
 
 CODE_EXEC_DESCRIPTION = (
-    "Выполняет Python-код в песочнице. "
-    "Используй для вычислений, парсинга данных, форматирования."
+    "Выполняет Python-код в песочнице. Используй для вычислений, парсинга данных, форматирования."
 )
 
 CODE_PARAM_DESCRIPTION = (
@@ -59,17 +61,17 @@ CODE_PARAM_DESCRIPTION = (
 
 
 class RestrictedImportError(Exception):
-    """Raised when trying to import a non-allowed module."""
+    """Ошибки при попытке импорта запрещенного модуля."""
 
     pass
 
 
 def _safe_import(name: str, *args: Any, **kwargs: Any) -> Any:
-    """Safe import that only allows whitelisted modules."""
+    """Безопасный импорт, разрешающий только модули из белого списка."""
     if name not in ALLOWED_MODULES:
         msg = f"Импорт модуля '{name}' запрещён. Разрешены: {ALLOWED_MODULES}"
         raise RestrictedImportError(msg)
-    return __builtins__["__import__"](name, *args, **kwargs)
+    return builtins.__import__(name, *args, **kwargs)
 
 
 def _validate_imports(tree: ast.AST) -> str | None:
@@ -81,11 +83,7 @@ def _validate_imports(tree: ast.AST) -> str | None:
     """
     for node in ast.walk(tree):
         if isinstance(node, ast.Import | ast.ImportFrom):
-            module_name = (
-                node.names[0].name
-                if isinstance(node, ast.Import)
-                else node.module or ""
-            )
+            module_name = node.names[0].name if isinstance(node, ast.Import) else node.module or ""
             base_module = module_name.split(".")[0]
             if base_module not in ALLOWED_MODULES:
                 return f"Импорт '{base_module}' запрещён."
@@ -95,8 +93,7 @@ def _validate_imports(tree: ast.AST) -> str | None:
 def _build_restricted_globals() -> dict[str, Any]:
     """Создаёт ограниченное глобальное окружение."""
     restricted_globals: dict[str, Any] = {
-        "__builtins__": ALLOWED_BUILTINS,
-        "__import__": _safe_import,
+        "__builtins__": {**ALLOWED_BUILTINS, "__import__": _safe_import},
     }
 
     for module_name in ALLOWED_MODULES:
@@ -148,7 +145,7 @@ class CodeExecTool(BaseTool):
     ]
 
     TIMEOUT_SEC = 5
-    MAX_OUTPUT_LEN = 2000
+    MAX_OUTPUT_LEN = settings.code_exec_max_output
 
     async def execute(self, code: str, **kwargs: Any) -> ToolResult:
         """Выполняет код в песочнице.
@@ -174,10 +171,23 @@ class CodeExecTool(BaseTool):
         if import_error:
             return ToolResult(success=False, data="", error=import_error)
 
-        return await self._run_code(tree)
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(self._run_code_sync, tree),
+                timeout=self.TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError:
+            return ToolResult(
+                success=False,
+                data="",
+                error=f"Превышен лимит времени ({self.TIMEOUT_SEC}с). Упростите код.",
+            )
+        except Exception as e:
+            logger.error("code_exec unexpected error: %s", e)
+            return ToolResult(success=False, data="", error=str(e))
 
-    async def _run_code(self, tree: ast.AST) -> ToolResult:
-        """Выполняет предварительно проверенный код."""
+    def _run_code_sync(self, tree: ast.AST) -> ToolResult:
+        """Выполняет предварительно проверенный код в синхронном режиме."""
         restricted_globals = _build_restricted_globals()
         local_vars: dict[str, Any] = {}
 

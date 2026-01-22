@@ -19,6 +19,24 @@ class Footnote(BaseModel):
     title: str
     source_file: str
     quote: str
+    source_type: str = "doc"
+    header_path: str | None = None
+    url: str | None = None
+
+    @property
+    def id(self) -> int:
+        """Alias для doc_id для обратной совместимости с UI."""
+        return self.doc_id
+
+
+class TraceStep(BaseModel):
+    """Шаг трассировки агента."""
+
+    step: int
+    thought: str
+    action: str
+    params: dict = Field(default_factory=dict)
+    observation: str | None = None
 
 
 class RAGOutput(BaseModel):
@@ -32,8 +50,14 @@ class RAGOutput(BaseModel):
     footnotes: list[Footnote] = Field(default_factory=list, description="Сноски для UI")
     latency_sec: float = Field(default=0.0, description="Общее время pipeline")
     answer_type: str = Field(default="final_answer", description="Тип ответа")
+
+    trace: list[TraceStep] = Field(default_factory=list, description="Трассировка шагов агента")
+
     timings: dict[str, float] | None = Field(
         default=None, description="Детальные таймеры по этапам pipeline"
+    )
+    ragas_scores: dict[str, float] | None = Field(
+        default=None, description="Оценки RAGAS для этого ответа"
     )
 
 
@@ -42,7 +66,7 @@ class EvaluationResult(BaseModel):
 
     id: str = Field(..., description="ID вопроса")
     question: str = Field(..., description="Вопрос")
-    expected_answer: str = Field(..., description="Эталонный ответ")
+    expected_answer: str | list[str] = Field(..., description="Эталонный ответ")
     source_file: str = Field(default="", description="Исходный файл")
     difficulty: str = Field(default="", description="Сложность")
     category: str = Field(default="", description="Категория")
@@ -52,6 +76,14 @@ class EvaluationResult(BaseModel):
     ragas_scores: dict[str, float] | None = Field(default=None, description="Оценки RAGAS")
 
     error: str | None = Field(default=None, description="Ошибка, если была")
+
+    keywords: list[str] = Field(
+        default_factory=list,
+        description="Ключевые слова для проверки качества ответа",
+    )
+    meta: dict = Field(
+        default_factory=dict, description="Дополнительные метаданные (expected_tools, context)"
+    )
 
 
 class EvaluationSummary(BaseModel):

@@ -16,6 +16,7 @@ class ToolResult(BaseModel):
     success: bool
     data: str = ""
     error: str | None = None
+    metadata: dict[str, Any] = {}
 
 
 class ToolParameterType(str, Enum):

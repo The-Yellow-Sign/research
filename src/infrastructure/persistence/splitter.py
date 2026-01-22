@@ -19,7 +19,7 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
 )
 
-from src.config import CHUNK_OVERLAP, CHUNK_SIZE, MIN_CHUNK_CHARS, SOURCE_DIR
+from src.config import settings
 from src.domain.models.document import ExtractedBlock, generate_parent_id
 from src.domain.services.chunking import (
     build_header_path,
@@ -28,12 +28,11 @@ from src.domain.services.chunking import (
     parse_frontmatter,
     process_markdown_ast,
 )
-from src.domain.services.metadata_extractor import (
-    extract_metadata,
-    extract_metadata_with_llm_fallback,
-)
+from src.infrastructure.nlp.metadata_extractor import GLiNERExtractor
 
 logger = logging.getLogger(__name__)
+
+_metadata_extractor = GLiNERExtractor()
 
 
 HEADERS_TO_SPLIT: list[tuple[str, str]] = [
@@ -44,8 +43,8 @@ HEADERS_TO_SPLIT: list[tuple[str, str]] = [
 
 _markdown_splitter = MarkdownHeaderTextSplitter(headers_to_split_on=HEADERS_TO_SPLIT)
 _text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=CHUNK_SIZE,
-    chunk_overlap=CHUNK_OVERLAP,
+    chunk_size=settings.chunk_size,
+    chunk_overlap=settings.chunk_overlap,
 )
 
 
@@ -74,11 +73,11 @@ def process_files() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         Кортеж (parents, children) со списками документов.
 
     """
-    if not SOURCE_DIR.is_dir():
-        logger.warning("Исходная директория не найдена: %s", SOURCE_DIR)
+    if not settings.source_dir.is_dir():
+        logger.warning("Исходная директория не найдена: %s", settings.source_dir)
         return [], []
 
-    files = list(SOURCE_DIR.glob("**/*.md"))
+    files = list(settings.source_dir.glob("**/*.md"))
     logger.info("Найдено %d markdown-файлов", len(files))
 
     all_parents: list[dict[str, Any]] = []
@@ -133,7 +132,7 @@ def _process_single_file(filepath: Path) -> tuple[list[dict[str, Any]], list[dic
 
     """
     try:
-        filename = str(filepath.relative_to(SOURCE_DIR))
+        filename = str(filepath.relative_to(settings.source_dir))
     except ValueError:
         filename = filepath.name
 
@@ -194,7 +193,7 @@ def _process_section(
     header_path = build_header_path({**split.metadata, "source_file": filename})
     parent_id = generate_parent_id(filename, header_path)
 
-    mentions = extract_metadata(section_text)
+    mentions = _metadata_extractor.extract_metadata(section_text)
 
     parent = {
         "id": parent_id,
@@ -258,7 +257,7 @@ def _create_children(
     }
 
     for block in blocks:
-        if len(block.content) < MIN_CHUNK_CHARS:
+        if len(block.content) < settings.min_chunk_chars:
             continue
 
         if block.block_type == "code":
@@ -296,7 +295,7 @@ def _create_children(
     text_chunks = _text_splitter.split_text(text_with_placeholders)
 
     for chunk_text in text_chunks:
-        if len(chunk_text) < MIN_CHUNK_CHARS:
+        if len(chunk_text) < settings.min_chunk_chars:
             continue
 
         vector_text = build_vector_text(service, header_path, chunk_text)
@@ -324,11 +323,11 @@ async def process_files_async() -> tuple[list[dict[str, Any]], list[dict[str, An
         Кортеж (parents, children) со списками документов.
 
     """
-    if not SOURCE_DIR.is_dir():
-        logger.warning("Исходная директория не найдена: %s", SOURCE_DIR)
+    if not settings.source_dir.is_dir():
+        logger.warning("Исходная директория не найдена: %s", settings.source_dir)
         return [], []
 
-    files = list(SOURCE_DIR.glob("**/*.md"))
+    files = list(settings.source_dir.glob("**/*.md"))
     logger.info("Найдено %d markdown-файлов (async with LLM)", len(files))
 
     all_parents: list[dict[str, Any]] = []
@@ -382,7 +381,7 @@ async def _process_single_file_async(
 
     """
     try:
-        filename = str(filepath.relative_to(SOURCE_DIR))
+        filename = str(filepath.relative_to(settings.source_dir))
     except ValueError:
         filename = filepath.name
 
@@ -443,7 +442,16 @@ async def _process_section_async(
     header_path = build_header_path({**split.metadata, "source_file": filename})
     parent_id = generate_parent_id(filename, header_path)
 
-    mentions = await extract_metadata_with_llm_fallback(section_text)
+    mentions = _metadata_extractor.extract_metadata(section_text)
+
+    strong_types = {"service", "technology", "command"}
+    if not any(t in mentions for t in strong_types):
+        llm_mentions = await _metadata_extractor.extract_entities_llm(section_text)
+        for t, v in llm_mentions.items():
+            if t not in mentions:
+                mentions[t] = v
+            else:
+                mentions[t] = list(set(mentions[t] + v))
 
     parent = {
         "id": parent_id,

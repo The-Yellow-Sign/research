@@ -15,7 +15,12 @@ from src.domain.models import (
     SourceDoc,
     generate_parent_id,
 )
-from src.domain.ports import DocumentStorePort, LLMPort, VectorStorePort
+from src.domain.ports import (
+    DocumentStorePort,
+    LLMPort,
+    MetadataExtractorPort,
+    VectorStorePort,
+)
 from src.domain.services import (
     build_header_path,
     build_vector_text,
@@ -38,4 +43,5 @@ __all__ = [
     "LLMPort",
     "VectorStorePort",
     "DocumentStorePort",
+    "MetadataExtractorPort",
 ]

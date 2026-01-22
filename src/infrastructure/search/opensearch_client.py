@@ -8,14 +8,9 @@ import time
 from typing import Any
 
 from opensearchpy import OpenSearch
+from tenacity import retry, stop_after_attempt, wait_exponential
 
-from src.config import (
-    OPENSEARCH_HOST,
-    OPENSEARCH_INDEX,
-    OPENSEARCH_PARENT_INDEX,
-    OPENSEARCH_PORT,
-    TOP_K_OPENSEARCH,
-)
+from src.config import settings
 from src.config.metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
@@ -32,10 +27,10 @@ class OpenSearchClient:
 
     def __init__(
         self,
-        host: str = OPENSEARCH_HOST,
-        port: int = OPENSEARCH_PORT,
-        children_index: str = OPENSEARCH_INDEX,
-        parent_index: str = OPENSEARCH_PARENT_INDEX,
+        host: str = settings.opensearch_host,
+        port: int = settings.opensearch_port,
+        children_index: str = settings.opensearch_index,
+        parent_index: str = settings.opensearch_parent_index,
     ) -> None:
         """Инициализация OpenSearch клиента.
 
@@ -48,11 +43,20 @@ class OpenSearchClient:
         """
         logger.info("Инициализация OpenSearchClient...")
 
-        self.client = OpenSearch(
-            hosts=[{"host": host, "port": port}],
-            use_ssl=False,
-            pool_maxsize=50,
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            reraise=True,
         )
+        def _connect():
+            logger.info("Подключение к OpenSearch: %s:%s...", host, port)
+            return OpenSearch(
+                hosts=[{"host": host, "port": port}],
+                use_ssl=False,
+                pool_maxsize=50,
+            )
+
+        self.client = _connect()
         self.children_index = children_index
         self.parent_index = parent_index
 
@@ -62,7 +66,7 @@ class OpenSearchClient:
         self,
         query: str,
         filters: dict[str, Any] | None = None,
-        top_k: int = TOP_K_OPENSEARCH,
+        top_k: int = settings.top_k_opensearch,
     ) -> list[dict[str, Any]]:
         """Полнотекстовый поиск по children через OpenSearch.
 
@@ -163,7 +167,7 @@ class OpenSearchClient:
     def search_fulltext(
         self,
         query: str,
-        top_k: int = TOP_K_OPENSEARCH,
+        top_k: int = settings.top_k_opensearch,
         filters: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Алиас для search() — совместимость с DocumentStorePort."""

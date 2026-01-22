@@ -4,6 +4,7 @@
 """
 
 import logging
+import threading
 from contextlib import contextmanager
 from typing import Any, Generator
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 _tracer: trace.Tracer | None = None
+_initialization_lock = threading.Lock()
 
 
 def setup_telemetry() -> None:
@@ -30,38 +32,41 @@ def setup_telemetry() -> None:
     """
     global _tracer
 
-    resource = Resource.create(
-        {
-            "service.name": settings.otlp_service_name,
-            "service.version": "1.0.0",
-            "deployment.environment": settings.environment,
-        }
-    )
+    with _initialization_lock:
+        if _tracer is not None:
+            return
 
-    provider = TracerProvider(resource=resource)
+        resource = Resource.create(
+            {
+                "service.name": settings.otlp_service_name,
+                "service.version": "1.0.0",
+                "deployment.environment": settings.environment,
+            }
+        )
 
-    if settings.otlp_endpoint:
-        try:
-            exporter = OTLPSpanExporter(endpoint=settings.otlp_endpoint, insecure=True)
-            provider.add_span_processor(BatchSpanProcessor(exporter))
-            logger.info("OTLP трейсинг включён: %s", settings.otlp_endpoint)
-        except Exception as e:
-            logger.warning("Не удалось настроить OTLP: %s. Используем console exporter.", e)
-            provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-    elif settings.environment == "development":
-        logger.debug("Трейсинг в режиме development (без экспорта)")
-    else:
-        logger.info("Трейсинг отключён (OTLP_ENDPOINT не задан)")
+        provider = TracerProvider(resource=resource)
 
-    trace.set_tracer_provider(provider)
-    _tracer = trace.get_tracer(__name__)
+        if settings.otlp_endpoint:
+            try:
+                exporter = OTLPSpanExporter(endpoint=settings.otlp_endpoint, insecure=True)
+                provider.add_span_processor(BatchSpanProcessor(exporter))
+                logger.info("OTLP трейсинг включён: %s", settings.otlp_endpoint)
+            except Exception as e:
+                logger.warning("Не удалось настроить OTLP: %s. Используем console exporter.", e)
+                provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        elif settings.environment == "development":
+            logger.debug("Трейсинг в режиме development (без экспорта)")
+        else:
+            logger.info("Трейсинг отключён (OTLP_ENDPOINT не задан)")
+
+        trace.set_tracer_provider(provider)
+        _tracer = trace.get_tracer(__name__)
 
 
 def get_tracer() -> trace.Tracer:
     """Возвращает глобальный tracer."""
-    global _tracer
     if _tracer is None:
-        _tracer = trace.get_tracer(__name__)
+        setup_telemetry()
     return _tracer
 
 

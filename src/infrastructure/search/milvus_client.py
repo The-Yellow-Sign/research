@@ -9,18 +9,17 @@ from typing import Any
 
 from pymilvus import Collection, connections
 from sentence_transformers import SentenceTransformer
+from tenacity import retry, stop_after_attempt, wait_exponential
 
-from src.config import (
-    EMBEDDING_MODEL_NAME,
-    MILVUS_COLLECTION,
-    MILVUS_HOST,
-    MILVUS_PORT,
-    QUERY_PREFIX,
-    TOP_K_MILVUS,
-)
+from src.config import settings
 from src.config.metrics import get_metrics_collector
 
 logger = logging.getLogger(__name__)
+
+
+def _escape_filter_value(value: str) -> str:
+    """Экранирует спецсимволы для Milvus expression."""
+    return value.replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"')
 
 
 class MilvusClient:
@@ -33,9 +32,9 @@ class MilvusClient:
     def __init__(
         self,
         embedder: SentenceTransformer | None = None,
-        host: str = MILVUS_HOST,
-        port: str = MILVUS_PORT,
-        collection_name: str = MILVUS_COLLECTION,
+        host: str = settings.milvus_host,
+        port: int = settings.milvus_port,
+        collection_name: str = settings.milvus_collection,
     ) -> None:
         """Инициализация Milvus клиента.
 
@@ -52,10 +51,19 @@ class MilvusClient:
             self.embedder = embedder
             logger.info("Используется переданная модель эмбеддингов")
         else:
-            logger.info("Загрузка модели эмбеддингов: %s", EMBEDDING_MODEL_NAME)
-            self.embedder = SentenceTransformer(EMBEDDING_MODEL_NAME)
+            logger.info("Загрузка модели эмбеддингов: %s", settings.models.embedding)
+            self.embedder = SentenceTransformer(settings.models.embedding)
 
-        connections.connect("default", host=host, port=port)
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            reraise=True,
+        )
+        def _connect():
+            logger.info("Подключение к Milvus: %s:%s...", host, port)
+            connections.connect("default", host=host, port=port)
+
+        _connect()
         self.collection = Collection(collection_name)
         self.collection.load()
 
@@ -65,7 +73,7 @@ class MilvusClient:
         self,
         query: str,
         filters: dict[str, Any] | None = None,
-        top_k: int = TOP_K_MILVUS,
+        top_k: int = settings.top_k_milvus,
     ) -> list[dict[str, Any]]:
         """Семантический поиск по children через Milvus.
 
@@ -79,11 +87,12 @@ class MilvusClient:
 
         """
         t0 = time.perf_counter()
-        query_vector = self.embedder.encode([f"{QUERY_PREFIX}{query}"])
+        query_vector = self.embedder.encode([f"{settings.query_prefix}{query}"])
 
         expr = ""
         if filters and "service" in filters:
-            expr = f"service == '{filters['service']}'"
+            safe_service = _escape_filter_value(filters["service"])
+            expr = f"service == '{safe_service}'"
 
         results = self.collection.search(
             data=query_vector,
