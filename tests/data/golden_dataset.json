@@ -1,0 +1,1010 @@
+[
+    {
+        "id": "q_001",
+        "question": "Какой HTTP код ошибки возвращает Nginx при проблеме 502 Bad Gateway и что это означает для upstream?",
+        "ground_truth": "Nginx возвращает код 502 Bad Gateway. Это означает, что Nginx, действуя как шлюз или прокси, получил недопустимый ответ от вышестоящего сервера (upstream). В логах это часто коррелирует с ошибками 'Connection refused' (111) или 'upstream timed out', что указывает на то, что бэкенд выключен, перегружен или недоступен по сети.",
+        "keywords": [
+            "502",
+            "Bad Gateway",
+            "Connection refused",
+            "upstream",
+            "недоступен"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "03-nginx-502-bad-gateway.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_002",
+        "question": "Что означает exit code 137 для Docker контейнера и какая наиболее вероятная причина?",
+        "ground_truth": "Exit code 137 указывает на то, что процесс контейнера был принудительно завершен сигналом SIGKILL (9). Наиболее частая причина — срабатывание OOM Killer (Out Of Memory) из-за превышения лимита памяти, установленного для контейнера (Docker memory limit) или нехватки системной памяти. Docker inspect в таких случаях показывает 'OOMKilled: true'.",
+        "keywords": [
+            "OOMKilled",
+            "SIGKILL",
+            "память",
+            "memory limit"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "06-docker-exit-code-137.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_003",
+        "question": "Какой параметр в postgresql.conf на мастере отвечает за уровень записи WAL для репликации и какое значение он должен принимать?",
+        "ground_truth": "Параметр `wal_level` определяет количество информации, записываемой в WAL. Для настройки репликации (как Streaming, так и архивной) он должен быть установлен в значение `replica` (или `logical`, если планируется логическая репликация, так как `logical` включает в себя `replica`). Значение `minimal` не поддерживает репликацию.",
+        "keywords": [
+            "wal_level",
+            "replica"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "11-postgresql-replication-guide.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_004",
+        "question": "Как называется таблица в DynamoDB для блокировок Terraform state и какой ключ partition key она должна иметь?",
+        "ground_truth": "Для блокировки состояния Terraform (State Locking) рекомендуется создать таблицу DynamoDB (обычно с именем `terraform-state-lock`). Критически важно, чтобы таблица имела Partition Key с точным именем `LockID` (тип String), иначе Terraform не сможет захватить лок.",
+        "keywords": [
+            "terraform-state-lock",
+            "LockID"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "aws-s3-terraform.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_005",
+        "question": "Какую политику overflow использует RabbitMQ для отброса старых сообщений из начала очереди?",
+        "ground_truth": "RabbitMQ использует политику `overflow: \"drop-head\"`. Когда очередь достигает максимальной длины (`max-length`), эта политика предписывает удалять ('drop') сообщения из головы ('head') очереди — то есть самые старые, чтобы освободить место для новых входящих сообщений.",
+        "keywords": [
+            "drop-head"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "08-rabbitmq-queue-overflow.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_006",
+        "question": "Какой exit code означает graceful shutdown в Kubernetes и какому сигналу он соответствует?",
+        "ground_truth": "Exit Code 143 в Kubernetes (и Docker) соответствует получению процесса сигнала SIGTERM (128 + 15 = 143). Это стандартный сигнал для запроса корректного завершения работы приложения (graceful shutdown), в отличие от SIGKILL.",
+        "keywords": [
+            "143",
+            "SIGTERM"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_007",
+        "question": "Какой паттерн мониторинга (RED или USE) SRE Handbook рекомендует для пользовательских метрик сервисов?",
+        "ground_truth": "SRE Handbook рекомендует паттерн **RED** для метрик сервисов и API. В отличие от USE (ориентированного на ресурсы), RED фокусируется на пользовательском опыте: **R**ate (количество запросов в секунду), **E**rrors (количество ошибок) и **D**uration (время обработки запроса/latency).",
+        "keywords": [
+            "RED",
+            "Rate",
+            "Errors",
+            "Duration"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "sre-engineering-handbook.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_008",
+        "question": "Какую команду SQL нужно выполнить на MySQL слейве для запуска процесса репликации?",
+        "ground_truth": "На слейве MySQL необходимо выполнить команду `START SLAVE;` (или `START REPLICA;` в новых версиях). Эта команда запускает потоки `IO_THREAD` (чтение binlog мастера) и `SQL_THREAD` (применение событий). Перед этим слейв должен быть сконфигурирован через `CHANGE MASTER TO`.",
+        "keywords": [
+            "START SLAVE"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "14-mysql-replication-guide.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_009",
+        "question": "Какой параметр sysctl рекомендуется увеличить для предотвращения отбрасывания входящих SYN-пакетов при высокой нагрузке на HAProxy?",
+        "ground_truth": "Рекомендуется увеличить параметр ядра `net.core.somaxconn` (например, до 65535). Этот параметр определяет максимальный размер очереди соединений, ожидающих принятия (accept) сокетом. При его нехватке новые TCP-соединения могут сбрасываться.",
+        "keywords": [
+            "net.core.somaxconn"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "haproxy-l7-deep-dive.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_010",
+        "question": "Что означает флаг завершения сессии 'sH--' в логах HAProxy?",
+        "ground_truth": "Флаг `sH--` расшифровывается так: 's' указывает, что инициатором разрыва соединения был **Server**, а 'H' означает, что это произошло на этапе получения или обработки заголовков (**Headers**). То есть сервер закрыл соединение или перестал отвечать до того, как HAProxy получил полные заголовки ответа.",
+        "keywords": [
+            "server",
+            "headers",
+            "закрыл соединение"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "haproxy-l7-deep-dive.md"
+            ]
+        },
+        "category": "factual_simple",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_011",
+        "question": "В чем принципиальное отличие механизмов логирования изменений при репликации в PostgreSQL (Physycal) и MySQL (GTID)?",
+        "ground_truth": "PostgreSQL при физической репликации использует **WAL (Write Ahead Log)** — это побайтовые изменения страниц данных на диске, обеспечивающие полную идентичность файлов. MySQL с GTID использует **Binary Log (binlog)** с форматом `ROW`, который содержит логические записи об изменениях строк данных. Это позволяет MySQL быть более гибким (например, репликация между разными minor версиями), но WAL обеспечивает более строгую консистентность на уровне хранилища.",
+        "keywords": [
+            "WAL",
+            "binlog",
+            "Physical",
+            "Logical",
+            "ROW"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "11-postgresql-replication-guide.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_012",
+        "question": "Сравни эффективность политик `drop-head` и `reject-publish` в RabbitMQ при переполнении очереди.",
+        "ground_truth": "Политика `drop-head` удаляет самые старые сообщения *уже находящиеся в очереди*, что немедленно освобождает память. Политика `reject-publish` запрещает *новые* публикации (возвращает ошибку паблишеру), но не удаляет существующие сообщения. Если очередь уже забита и память переполнена, `drop-head` поможет восстановить стабильность быстрее, тогда как `reject-publish` лишь предотвратит дальнейший рост, но не освободит ресурсы.",
+        "keywords": [
+            "memory",
+            "освобождение",
+            "старые сообщения",
+            "publisher error"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "08-rabbitmq-queue-overflow.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_013",
+        "question": "В чем разница между назначением Liveness и Readiness probes в Kubernetes и их влиянием на Pod?",
+        "ground_truth": "**Liveness Probe** проверяет, жив ли процесс. Если она проваливается, kubelet **перезапускает** (restart) контейнер. Используется для лечения дедлоков. **Readiness Probe** проверяет, готово ли приложение обрабатывать запросы. Если она проваливается, под **исключается из Endpoint'ов** Service (трафик не идет), но не перезапускается. Используется при старте приложения или временной перегрузке.",
+        "keywords": [
+            "restart",
+            "traffic",
+            "deadlock",
+            "startup"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_014",
+        "question": "Сравни методы Sticky Sessions в HAProxy: 'Cookie Insertion' против 'Stick Tables'. Какой надежнее?",
+        "ground_truth": "**Cookie Insertion** сохраняет информацию о сервере на стороне клиента (в браузере). Это надежнее и stateless для балансировщика: даже если HAProxy перезагрузится, он прочитает куку из запроса. **Stick Tables** хранят таблицу соответствия (IP -> Server) в оперативной памяти HAProxy. Если HAProxy перезагрузится (и нет синхронизации peers), привязки потеряются. Поэтому Cookie Insertion считается более отказоустойчивым методом.",
+        "keywords": [
+            "client-side",
+            "server-side",
+            "memory",
+            "failover"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "haproxy-l7-deep-dive.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_015",
+        "question": "В чем отличие между ошибкой `java.lang.OutOfMemoryError` и `Exit Code 137` (OOMKilled) для Java приложения в контейнере?",
+        "ground_truth": "`java.lang.OutOfMemoryError` выбрасывается JVM, когда заканчивается **Heap** (или Metaspace) внутри виртуальной машины. Приложение может попытаться обработать это или упасть с логом. `Exit Code 137` (OOMKilled) происходит уровнем выше: ядро Linux (через cgroups) убивает весь процесс контейнера, потому что он превысил **лимит памяти Docker** (Heap + Native Memory + Overhead). В этом случае JVM не успевает ничего залогировать.",
+        "keywords": [
+            "JVM Heap",
+            "Cgroup limit",
+            "OS Kernel",
+            "Graceful"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "06-docker-exit-code-137.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_016",
+        "question": "Объясни разницу между паттернами мониторинга RED и USE: для каких компонентов они применяются?",
+        "ground_truth": "**RED** (Rate, Errors, Duration) применяется к **сервисам и микросервисам** (Request-driven), так как он отражает качество обслуживания пользователя/клиента. **USE** (Utilization, Saturation, Errors) применяется к **ресурсам инфраструктуры** (CPU, Disk, Memory), так как он отвечает на вопрос 'насколько загружено железо'.",
+        "keywords": [
+            "User expirience",
+            "Infrastructure",
+            "Services",
+            "Hardware"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "sre-engineering-handbook.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_017",
+        "question": "В чем техническое различие между `proxy_connect_timeout` и `proxy_read_timeout` в конфигурации Nginx?",
+        "ground_truth": "`proxy_connect_timeout` ограничивает время на **установление TCP-соединения** (handshake) с бэкендом. Если бэкенд выключен, это сработает быстро. `proxy_read_timeout` ограничивает время ожидания **чтения ответа** от бэкенда *после* того, как соединение уже установлено. Это актуально, если бэкенд 'думает' над генерацией ответа слишком долго.",
+        "keywords": [
+            "TCP handshake",
+            "response data",
+            "connection establishment",
+            "body"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "03-nginx-502-bad-gateway.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_018",
+        "question": "Почему HAProxy может перехватить запрос к `/api/v2` правилом для `/api`, и как это отличается от логики Nginx 'longest match'?",
+        "ground_truth": "HAProxy обрабатывает правила ACL в **порядке их объявления** в конфигурации (First Match). Если правило `path_beg /api` стоит выше, оно сработает и для `/api/v2`. Nginx же по умолчанию использует логику **Longest Prefix Match** для location-блоков, то есть он автоматически выберет наиболее специфичное правило, независимо от порядка (кроме regex).",
+        "keywords": [
+            "order",
+            "ACL",
+            "first match",
+            "longest prefix"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "haproxy-l7-deep-dive.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_019",
+        "question": "Почему SRE Handbook запрещает хранение секретов в Git (даже с git-crypt) и требует использовать HashiCorp Vault?",
+        "ground_truth": "Git, даже с шифрованием, не обеспечивает **аудита доступа** (кто и когда читал секрет), **ротации** (автоматической смены паролей) и **гранулярного отзыва** прав. Если репозиторий скомпрометирован (или уволен сотрудник), нужно менять все секреты вручную. Vault решает эти проблемы, предоставляя динамические секреты, аудит-лог и централизованное управление политиками доступа.",
+        "keywords": [
+            "audit",
+            "rotation",
+            "access control",
+            "revocation"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "sre-engineering-handbook.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_020",
+        "question": "Docker Inspect показывает `Exit Code: 1` vs `Exit Code: 137`. В каком случае проблему надо искать в коде приложения?",
+        "ground_truth": "Проблему в коде приложения следует искать при **Exit Code: 1**. Этот код означает, что приложение само завершило работу с ошибкой (uncaught exception, ошибка валидации конфига). Exit Code 137 означает внешнее убийство (OOM), что является инфраструктурной проблемой (лимиты), а не багом логики кода.",
+        "keywords": [
+            "Exit Code 1",
+            "application error",
+            "exception"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "comparison",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_021",
+        "question": "Пользователи видят 502 ошибку, в логах Nginx 'Connection refused'. Опиши пошаговый алгоритм диагностики бэкенда.",
+        "ground_truth": "1. **Проверка статуса сервиса**: Убедитесь, что бэкенд вообще запущен (`systemctl status` или `pm2 list`).\n2. **Проверка порта**: Убедитесь, что процесс слушает нужный порт (`netstat -tlnp` или `ss -tlnp`).\n3. **Проверка Bind Address**: Если Nginx обращается по IP (не localhost), а сервис слушает только 127.0.0.1, измените конфиг сервиса на 0.0.0.0.\n4. **Проверка Firewall**: Убедитесь, что `ufw` или `iptables` не блокируют соединение на этом порту.",
+        "keywords": [
+            "systemctl status",
+            "netstat",
+            "bind address",
+            "firewall"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "03-nginx-502-bad-gateway.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_022",
+        "question": "Java приложение падает с OOMKilled в Kubernetes. Лимит контейнера равен 2Gb. Почему нельзя ставить JVM Heap (-Xmx) тоже 2Gb и как вычислить правильное значение?",
+        "ground_truth": "Если установить `-Xmx2g` при лимите контейнера 2Gb, процесс гарантированно будет убит, так как JVM требуется дополнительная память для **Metaspace**, стека потоков, GC структур и кода (Overhead). Сумма Heap + Non-Heap превысит 2Gb. Правильное значение `-Xmx` должно быть меньше лимита контейнера (обычно 70-80%). Рекомендуется установить `-Xmx1536m` (1.5Gb) и ограничить Metaspace (`-XX:MaxMetaspaceSize=256m`), оставив запас на overhead.",
+        "keywords": [
+            "Overhead",
+            "Metaspace",
+            "Threads",
+            "75%"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_023",
+        "question": "Опиши ключевые шаги настройки безопасного удаленного хранения состояния Terraform (Remote State) в AWS с защитой от одновременной записи.",
+        "ground_truth": "1. **Создание S3 бакета**: Создать приватный бакет для файлов состояния.\n2. **Версионирование**: Включить versioning на бакете для защиты от случайных повреждений/удалений.\n3. **Шифрование**: Включить Server-Side Encryption (AES256 или KMS) для безопасности данных.\n4. **Блокировка доступа**: Запретить Public Access к бакету.\n5. **State Locking**: Создать таблицу DynamoDB с ключом `LockID` и указать её в backend-конфиге Terraform для предотвращения race conditions.",
+        "keywords": [
+            "S3",
+            "Versioning",
+            "Encryption",
+            "DynamoDB",
+            "LockID"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "aws-s3-terraform.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_024",
+        "question": "Необходимо настроить мастер PostgreSQL для репликации. Какие изменения нужно внести в конфиги (postgresql.conf и pg_hba.conf) и какие права дать пользователю?",
+        "ground_truth": "1. **Роль**: Создать пользователя с атрибутом `REPLICATION` (`CREATE ROLE ... WITH REPLICATION`).\n2. **postgresql.conf**: Установить `wal_level = replica` для включения записи необходимых данных в WAL. Также настроить `max_wal_senders`.\n3. **pg_hba.conf**: Разрешить входящие подключения для пользователя репликации от IP-адресов реплик (`host replication ...`).\n4. **Применение**: Перезапустить сервис PostgreSQL.",
+        "keywords": [
+            "replication role",
+            "wal_level",
+            "pg_hba allow",
+            "restart"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "11-postgresql-replication-guide.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_025",
+        "question": "RabbitMQ выдает предупреждение о памяти и очередь переполнена. Какие три шага по эскалации решения проблемы описаны в плейбуке?",
+        "ground_truth": "1. **Масштабирование**: Попробовать увеличить скорость разбора очереди, добавив больше consumers (скейлинг подов или воркеров).\n2. **Политика**: Если не помогает, ограничить рост очереди, применив политику `max-length` и `overflow: drop-head` (удаление старых).\n3. **Сброс (Emergency)**: В критической ситуации полной блокировки выполнить `rabbitmqctl purge_queue` для полной очистки очереди с потерей данных.",
+        "keywords": [
+            "Consumers",
+            "Policy drop-head",
+            "Purge"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "08-rabbitmq-queue-overflow.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_026",
+        "question": "Как проверить, что MySQL репликации работает корректно и нет отставания? Назови конкретные поля команды диагностики.",
+        "ground_truth": "Нужно выполнить команду `SHOW SLAVE STATUS\\G` на слейве. Ключевые показатели здоровья:\n- `Slave_IO_Running`: **Yes** (подключение к мастеру есть).\n- `Slave_SQL_Running`: **Yes** (применение транзакций идет).\n- `Seconds_Behind_Master`: Значение должно быть **0** или близко к нему. Высокое значение указывает на лаг репликации.",
+        "keywords": [
+            "SHOW SLAVE STATUS",
+            "Slave_IO_Running",
+            "Slave_SQL_Running",
+            "Seconds_Behind_Master"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "14-mysql-replication-guide.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_027",
+        "question": "Клиент жалуется, что его постоянно 'разлогинивает' на сайте. Используется HAProxy. Как обеспечить наиболее надежную 'липкость' сессии?",
+        "ground_truth": "Проблема, вероятно, в переключении запросов между серверами. Для самой надежной фиксации сессии нужно настроить **Cookie Insertion** в HAProxy. В конфиге бэкенда добавьте `cookie SRVNAME insert indirect nocache`. Это заставит HAProxy внедрять в ответ специальную куку с именем сервера, которую браузер вернет в следующем запросе, гарантируя маршрутизацию на тот же сервер.",
+        "keywords": [
+            "Cookie Insertion",
+            "cookie SRVNAME insert",
+            "nocache"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "haproxy-l7-deep-dive.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_028",
+        "question": "Каков SLA реакции на критический (P0) алерт согласно SRE Handbook, и какие действия должен предпринять дежурный?",
+        "ground_truth": "Согласно SRE Handbook, время реакции (Response Time) на P0 алерт составляет **не более 15 минут**. Дежурный инженер обязан: \n1. Поставить ACK (подтверждение) алерту в PagerDuty.\n2. Начать диагностику, используя соответствующий **Runbook**.\n3. Коммуницировать статус (при передаче смены или эскалации) через Slack.",
+        "keywords": [
+            "15 минут",
+            "ACK",
+            "Runbook",
+            "Slack"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "sre-engineering-handbook.md"
+            ]
+        },
+        "category": "multi_hop",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_029",
+        "question": "А как проверить логи предыдущего контейнера, если текущий только что перезапустился и его логи чистые?",
+        "ground_truth": "В Kubernetes для этого существует специальный флаг `--previous` (или `-p`). Команда `kubectl logs <pod_name> --previous` покажет STDOUT/STDERR умершего экземпляра контейнера, что поможет понять причину его падения (например, StackTrace перед крашем).",
+        "keywords": [
+            "kubectl logs",
+            "--previous"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "follow_up",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_030",
+        "question": "Какую команду можно использовать, чтобы детально посмотреть события, произошедшие с подом (Events)?",
+        "ground_truth": "Используйте `kubectl describe pod <pod_name>`. В конце вывода этой команды находится секция **Events**, где Kubernetes пишет хронологию событий (Pulling image, Created container, BackOff, Unhealthy и т.д.), что критично для диагностики.",
+        "keywords": [
+            "kubectl describe pod",
+            "Events"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "follow_up",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_031",
+        "question": "Где обычно находится access log у Nginx и как быстро отфильтровать там 502 ошибки?",
+        "ground_truth": "Стандартный путь к логу запросов — `/var/log/nginx/access.log`. Для поиска 502 ошибок удобно использовать `grep`: `grep \" 502 \" /var/log/nginx/access.log` или отслеживать в реальном времени: `tail -f /var/log/nginx/access.log | grep \" 502 \"`.",
+        "keywords": [
+            "/var/log/nginx/access.log",
+            "grep",
+            "tail"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "03-nginx-502-bad-gateway.md"
+            ]
+        },
+        "category": "follow_up",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_032",
+        "question": "Если смена политики не помогает освободить память моментально, какая есть кардинальная мера очистки очереди RabbitMQ?",
+        "ground_truth": "Кардинальная мера — выполните команду `rabbitmqctl purge_queue <queue_name>`. Это **удалит все сообщения** из указанной очереди моментально, освободив память. Применять стоит только в случае, когда потеря сообщений допустима ради спасения работоспособности кластера.",
+        "keywords": [
+            "purge_queue",
+            "удаление всех"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "08-rabbitmq-queue-overflow.md"
+            ]
+        },
+        "category": "follow_up",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_033",
+        "question": "Я исправил конфиг приложения, но Nginx все еще пишет Connection Refused. Нужно ли проверять локальный файрвол сервера?",
+        "ground_truth": "Да, обязательно. Если приложение запущено и слушает порт, но соединение не проходит, возможно, порт заблокирован файрволом (`ufw` или `iptables`). Проверьте статус (`sudo ufw status`) и разрешите входящие подключения на порт приложения (`sudo ufw allow <port>`).",
+        "keywords": [
+            "ufw",
+            "iptables",
+            "blocking port"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "03-nginx-502-bad-gateway.md"
+            ]
+        },
+        "category": "follow_up",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_034",
+        "question": "Как через консоль (CLI) быстро посмотреть текущее количество сообщений во всех очередях RabbitMQ?",
+        "ground_truth": "Используйте команду `rabbitmqctl list_queues`. Для более детального вывода (с именами и количеством сообщений) выполните: `rabbitmqctl list_queues name messages`.",
+        "keywords": [
+            "rabbitmqctl list_queues"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "08-rabbitmq-queue-overflow.md"
+            ]
+        },
+        "category": "follow_up",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_035",
+        "question": "Какой тип проверки Liveness Probe рекомендуется использовать для веб-сервисов, чтобы избежать зависаний?",
+        "ground_truth": "Для веб-сервисов рекомендуется использовать **HTTP Probe** (`httpGet`). Настройте специальный легкий эндпоинт в приложении (например, `/healthz`), который возвращает 200 OK, если основные компоненты приложения функционируют.",
+        "keywords": [
+            "httpGet",
+            "endpoint",
+            "healthz"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "follow_up",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_036",
+        "question": "Сгенерируй правило для Prometheus (PrometheusRule), которое будет алертить, если под входит в состояние CrashLoopBackOff (частые рестарты).",
+        "ground_truth": "```yaml\ngroups:\n- name: kubernetes.pods\n  rules:\n  - alert: PodCrashLooping\n    expr: rate(kube_pod_container_status_restarts_total[15m]) > 0\n    for: 5m\n    labels:\n      severity: critical\n    annotations:\n      summary: \"Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping\"\n```\nЭто правило отслеживает ненулевую скорость рестартов контейнеров.",
+        "keywords": [
+            "kube_pod_container_status_restarts_total",
+            "rate",
+            "alert: PodCrashLooping"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "02-k8s-crashloopbackoff.md"
+            ]
+        },
+        "category": "code_related",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_037",
+        "question": "Приведи пример конфигурации HAProxy backend, где включена 'Cookie Insertion' дляsticky sessions.",
+        "ground_truth": "```haproxy\nbackend app-servers\n    balance roundrobin\n    # Вставка cookie с именем SRVNAME\n    cookie SRVNAME insert indirect nocache\n    # Проверка cookie на каждом сервере\n    server s1 10.0.0.1:80 check cookie s1\n    server s2 10.0.0.2:80 check cookie s2\n```",
+        "keywords": [
+            "cookie SRVNAME insert",
+            "check cookie"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "haproxy-l7-deep-dive.md"
+            ]
+        },
+        "category": "code_related",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_038",
+        "question": "Напиши команду AWS CLI для создания приватного S3 бакета c именем 'my-terraform-state' в регионе us-east-1.",
+        "ground_truth": "```bash\naws s3api create-bucket \\\n    --bucket my-terraform-state \\\n    --region us-east-1\n```",
+        "keywords": [
+            "aws s3api create-bucket",
+            "us-east-1"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "aws-s3-terraform.md"
+            ]
+        },
+        "category": "code_related",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_039",
+        "question": "Напиши SQL скрипт для создания пользователя 'repl' в MySQL с правами, необходимыми для репликации с любого хоста.",
+        "ground_truth": "```sql\n-- Создание пользователя\nCREATE USER 'repl'@'%' IDENTIFIED BY 'StrongPass123';\n-- Выдача прав на репликацию\nGRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';\n-- Применение прав\nFLUSH PRIVILEGES;\n```",
+        "keywords": [
+            "CREATE USER",
+            "GRANT REPLICATION SLAVE",
+            "FLUSH PRIVILEGES"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "14-mysql-replication-guide.md"
+            ]
+        },
+        "category": "code_related",
+        "difficulty": "hard"
+    },
+    {
+        "id": "q_040",
+        "question": "Напиши простой bash-скрипт, который проверяет HTTP статус локального сервиса (порт 8080) и перезапускает его, если статус не 200.",
+        "ground_truth": "```bash\n#!/bin/bash\n# Получаем HTTP код\nSTATUS=$(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8080/health)\n\n# Проверяем и перезапускаем при ошибке\nif [ \"$STATUS\" != \"200\" ]; then\n    echo \"Service check failed, restarting...\"\n    systemctl restart app-backend\nfi\n```",
+        "keywords": [
+            "curl",
+            "http_code",
+            "systemctl restart",
+            "if"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "03-nginx-502-bad-gateway.md"
+            ]
+        },
+        "category": "code_related",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_041",
+        "question": "У нас развалилась репликация базы, помоги.",
+        "ground_truth": "❓ О какой именно базе данных идет речь (PostgreSQL или MySQL)? Какие ошибки вы видите в логах слейва (Show Slave Status или pg_stat_replication)?",
+        "keywords": [
+            "Какая база",
+            "MySQL",
+            "PostgreSQL",
+            "ошибки"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "clarification_needed",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_042",
+        "question": "Сайт выдает 502 ошибку.",
+        "ground_truth": "❓ Какой балансировщик используется (Nginx или HAProxy)? Проявляется ли это на всех страницах или только на конкретных путях?",
+        "keywords": [
+            "балансировщик",
+            "Nginx",
+            "HAProxy",
+            "url"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "clarification_needed",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_043",
+        "question": "Нужно настроить мониторинг для нового сервиса.",
+        "ground_truth": "❓ Вас интересует подключение метрик (Prometheus/RED) или сбор логов (Loki)? Является ли сервис критичным (нужны ли алерты в PagerDuty)?",
+        "keywords": [
+            "метрики",
+            "логи",
+            "SRE handbook"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "sre-engineering-handbook.md"
+            ]
+        },
+        "category": "clarification_needed",
+        "difficulty": "medium"
+    },
+    {
+        "id": "q_044",
+        "question": "Приложение упало с ошибкой памяти.",
+        "ground_truth": "❓ Это Java приложение (OutOfMemoryError в логах) или контейнер был убит системой (Exit Code 137/OOMKilled)?",
+        "keywords": [
+            "Docker",
+            "Java",
+            "OOMKilled",
+            "OutOfMemory"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "clarification_needed",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_045",
+        "question": "Как исправить access denied?",
+        "ground_truth": "❓ Где возникает ошибка доступа: при подключении к базе данных, при SSH входе или при доступе к файлам в контейнере?",
+        "keywords": [
+            "где",
+            "ssh",
+            "db",
+            "file"
+        ],
+        "meta": {
+            "expected_tools": [
+                "rag_search"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "clarification_needed",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_046",
+        "question": "Как приготовить борщ?",
+        "ground_truth": "Не могу ответить. Моя база знаний содержит только техническую документацию по DevOps и SRE, кулинарные рецепты выходят за рамки моей компетенции.",
+        "keywords": [
+            "не могу",
+            "рецепт",
+            "вне контекста"
+        ],
+        "meta": {
+            "expected_tools": [
+                "final_answer"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "out_of_scope",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_047",
+        "question": "Где лучше купить криптовалюту?",
+        "ground_truth": "Не могу ответить. Я не даю финансовых советов. Я могу помочь только с настройкой инфраструктуры (например, баз данных или мониторинга).",
+        "keywords": [
+            "финансы",
+            "не знаю"
+        ],
+        "meta": {
+            "expected_tools": [
+                "final_answer"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "out_of_scope",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_048",
+        "question": "Кто победил на выборах в 2024 году?",
+        "ground_truth": "Не могу ответить. У меня нет доступа к новостям или политическим событиям. Я отвечаю только по документации DevOps playbooks.",
+        "keywords": [
+            "политика",
+            "новости",
+            "не знаю"
+        ],
+        "meta": {
+            "expected_tools": [
+                "final_answer"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "out_of_scope",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_049",
+        "question": "Посоветуй хороший боевик на вечер.",
+        "ground_truth": "Не могу ответить. Я технический помощник, а не рекомендательная система фильмов.",
+        "keywords": [
+            "фильм",
+            "не могу"
+        ],
+        "meta": {
+            "expected_tools": [
+                "final_answer"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "out_of_scope",
+        "difficulty": "simple"
+    },
+    {
+        "id": "q_050",
+        "question": "Почему вода мокрая?",
+        "ground_truth": "Не могу ответить. Это вопрос физических свойств материи, что не относится к IT документации.",
+        "keywords": [
+            "физика",
+            "свойства",
+            "не знаю"
+        ],
+        "meta": {
+            "expected_tools": [
+                "final_answer"
+            ],
+            "reference_contexts": [
+                "N/A"
+            ]
+        },
+        "category": "out_of_scope",
+        "difficulty": "simple"
+    }
+]

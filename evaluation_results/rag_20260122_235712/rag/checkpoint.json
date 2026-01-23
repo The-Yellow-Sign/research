@@ -1,0 +1,465 @@
+[
+  {
+    "id": "q_001",
+    "question": "Какой HTTP код ошибки возвращает Nginx при проблеме 502 Bad Gateway и что это означает для upstream?",
+    "expected_answer": "Nginx возвращает код 502 Bad Gateway. Это означает, что Nginx, действуя как шлюз или прокси, получил недопустимый ответ от вышестоящего сервера (upstream). В логах это часто коррелирует с ошибками 'Connection refused' (111) или 'upstream timed out', что указывает на то, что бэкенд выключен, перегружен или недоступен по сети.",
+    "source_file": "",
+    "difficulty": "simple",
+    "category": "factual_simple",
+    "rag_output": {
+      "generated_answer": "**Диагноз:**  \nОшибка 502 Bad Gateway означает, что upstream сервис \"лежит\" или не успевает отвечать [1].  \n\n**Решение:**  \n1. Проверьте, запущен ли upstream сервис:  \n```bash\nsudo systemctl status app-backend\n```  \n[7]  \n\n2. Если upstream не слушает на нужном порту, проверьте, на каком адресе и порту он слушает:  \n```bash\nsudo lsof -i -P -n | grep LISTEN | grep -E 'node|python|java'\n```  \n[7]  \n\n3. Проверьте, что upstream сервер доступен по указанному адресу:  \n```bash\ncurl -v http://127.0.0.1:8080/health\n```  \n[8]  \n\n4. Если в логах Nginx присутствует `connect() failed (111: Connection refused)`, это означает, что upstream сервис не запущен или не слушает на указанном адресе [4].  \n\n5. Если в логах Nginx присутствует `upstream timed out (110: Connection timed out)`, это означает, что upstream обрабатывает запрос слишком долго [4].  \n\n6. Если в логах Nginx присутствует `upstream prematurely closed connection while reading response header from upstream`, это означает, что upstream закрыл соединение до отправки полного ответа [6].  \n\n**Важные замечания:**  \n- Если upstream слушает только на `127.0.0.1`, а Nginx пытается подключиться по `10.x.x.x` — будет ошибка [7].  \n- Ошибка `Connection refused` может быть вызвана тем, что приложение не запущено или не слушает на порту, указанном в конфигурации Nginx [4].  \n- Ошибка `Connection timed out` может быть вызвана тяжелыми запросами или firewall [4].",
+      "rewritten_query": "",
+      "retrieved_contexts": [
+        {
+          "source": "quick-notes.md",
+          "content": "Если вы видите 502 Bad Gateway, скорее всего ваш upstream сервис \"лежит\" или не успевает отвечать.",
+          "score": 0.995572566986084
+        },
+        {
+          "source": "03-nginx-502-bad-gateway.md",
+          "content": "Пользователи получают белую страницу с ошибкой \"502 Bad Gateway\" при попытке зайти на сайт или API. В браузере отображается стандартная страница ошибки Nginx. Время отклика составляет несколько секунд перед появлением ошибки. Мониторинг показывает рост числа 5xx ошибок. Некоторые запросы проходят успешно (200 OK), другие падают с 502 – проблема непостоянная. Load balancer health checks могут показывать, что бэкенды down.",
+          "score": 0.8670628070831299
+        },
+        {
+          "source": "03-nginx-502-bad-gateway.md",
+          "content": "```text\n2025/11/28 15:12:47 [error] 18293#18293: *47821 connect() failed (111: Connection refused) while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\", request_id: \"a7f3c2e9b8d1\"\n2025/11/28 15:12:47 [warn] 18293#18293: *47821 upstream server temporarily disabled while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\"\n203.0.113.42 - - [28/Nov/2025:15:12:47 +0300] \"POST /api/v1/payments HTTP/1.1\" 502 157 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" rt=0.003 uct=\"-\" uht=\"-\" urt=\"-\"\n```  \n```text\n2025/11/28 15:15:33 [error] 18294#18294: *48912 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.15:3000/dashboard/analytics\", host: \"www.example.com\", referrer: \"https://www.example.com/dashboard\"\n2025/11/28 15:15:33 [error] 18294#18294: *48912 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.16:3000/dashboard/analytics\", host: \"www.example.com\"\n198.51.100.73 - - [28/Nov/2025:15:15:33 +0300] \"GET /dashboard/analytics HTTP/1.1\" 502 559 \"https://www.example.com/dashboard\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)\" rt=60.003 uct=\"60.000\" uht=\"60.000\" urt=\"60.003\"\nX-Request-ID: f8c2a91d-4e3b-4f2c-9d1e-7a8c3b2e1f90\nX-Upstream-Status: error\nX-Upstream-Response-Time: 60.003\n```  \n```text\n2025/11/28 15:18:22 [crit] 18295#18295: *49847 open() \"/var/lib/nginx/proxy/3/47/0000000473\" failed (13: Permission denied) while reading upstream, client: 192.0.2.119, server: cdn.example.com, request: \"GET /assets/bundle.js HTTP/1.1\", upstream: \"http://10.0.3.21:9000/assets/bundle.js\", host: \"cdn.example.com\"\n2025/11/28 15:18:22 [error] 18295#18295: *49847 writev() failed (32: Broken pipe) while sending request to upstream, client: 192.0.2.119, server: cdn.example.com, request: \"GET /assets/bundle.js HTTP/1.1\", upstream: \"http://10.0.3.21:9000/assets/bundle.js\", host: \"cdn.example.com\"\n192.0.2.119 - - [28/Nov/2025:15:18:22 +0300] \"GET /assets/bundle.js HTTP/1.1\" 502 166 \"-\" \"curl/7.68.0\" rt=0.127 uct=\"0.001\" uht=\"0.125\" urt=\"0.001\"\n[error] 18295#18295: *49847 upstream prematurely closed connection while reading response header from upstream\nPID: 18295\nWorker: 2\nConnection: 49847\nUpstream: 10.0.3.21:9000\n```",
+          "score": 0.550799548625946
+        },
+        {
+          "source": "nginx-emergency.md",
+          "content": "Логи находятся по стандартному пути `/var/log/nginx/error.log`.  \n| Ошибка | Причина | Решение |\n| :--- | :--- | :--- |\n| (111: Connection refused) | Апстрим (backend) лежит | Проверьте backend сервис |\n| (110: Connection timed out) | Тяжелый запрос или firewall | Увеличьте proxy_read_timeout |",
+          "score": 0.3946249783039093
+        },
+        {
+          "source": "sre-engineering-handbook.md",
+          "content": "Для каждого критического алерта ДОЛЖЕН существовать ранбук.\n- [Пример: Ошибки 502 в Nginx](03-nginx-502-bad-gateway.md)\n- [Пример: Репликация Postgres](11-postgresql-replication-guide.md)  \n---",
+          "score": 0.27971121668815613
+        },
+        {
+          "source": "quick-notes.md",
+          "content": "Check the error log for `upstream prematurely closed connection`:\n```bash\ntail -f /var/log/nginx/error.log | grep upstream\n```",
+          "score": 0.21904557943344116
+        },
+        {
+          "source": "03-nginx-502-bad-gateway.md",
+          "content": "**Шаг 1: Быстрая проверка upstream доступности**  \n```bash\n# Если upstream service не запущен, запустите его\nsudo systemctl status app-backend\nsudo systemctl start app-backend\nsudo systemctl enable app-backend\n\n# Для PM2 (Node.js)\npm2 list\npm2 restart app-api\n\n# Для Gunicorn (Python)\nsudo systemctl restart gunicorn\n# или\npkill -HUP gunicorn\n\n# Для Java приложений\nsudo systemctl restart tomcat\n# или проверьте через jps\njps -l\n```  \n**Шаг 2: Проверка и исправление Nginx конфигурации**  \nПроверьте upstream блок в конфигурации:  \n```bash\n# Найдите конфигурацию upstream\ngrep -r \"upstream\" /etc/nginx/sites-enabled/\ncat /etc/nginx/sites-enabled/default\n```  \nТипичные проблемы в конфигурации:  \n```nginx\n# Неправильно (если upstream на localhost)\nupstream backend {\nserver 127.0.0.1:8080;\n}\n\n# Проверьте таймауты – возможно они слишком маленькие\nproxy_connect_timeout 5s;   # Слишком мало для медленных апп\nproxy_read_timeout 10s;     # Увеличьте\n\n# Правильная конфигурация с резервированием\nupstream backend {\nserver 10.0.2.15:8080 max_fails=3 fail_timeout=30s;\nserver 10.0.2.16:8080 max_fails=3 fail_timeout=30s backup;\nkeepalive 32;\n}\n\nserver {\nlisten 80;\nserver_name api.example.com;\n\nlocation / {\nproxy_pass http://backend;\nproxy_http_version 1.1;\nproxy_set_header Connection \"\";\nproxy_set_header Host $host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n\n# Увеличьте таймауты\nproxy_connect_timeout 60s;\nproxy_send_timeout 60s;\nproxy_read_timeout 60s;\n\n# Буферизация\nproxy_buffering on;\nproxy_buffer_size 4k;\nproxy_buffers 8 4k;\nproxy_busy_buffers_size 8k;\n\n# Retry\nproxy_next_upstream error timeout http_502 http_503 http_504;\nproxy_next_upstream_tries 2;\n}\n}\n```  \nПримените изменения:  \n```bash\n# Проверьте синтаксис\nsudo nginx -t\n\n# Перезагрузите конфигурацию без downtime\nsudo nginx -s reload\n# или\nsudo systemctl reload nginx\n```  \n**Шаг 3: Решение проблемы с Connection Refused**  \nЕсли upstream не слушает на нужном порту:  \n```bash\n# Найдите, на каком порту слушает приложение\nsudo lsof -i -P -n | grep LISTEN | grep -E 'node|python|java'\n\n# Проверьте bind address (0.0.0.0 vs 127.0.0.1)\n# Если приложение слушает только на 127.0.0.1, а nginx пытается подключиться по 10.x.x.x – будет ошибка\n\n# Исправьте конфигурацию приложения чтобы слушать на 0.0.0.0\n# Например для Node.js/Express:\n# app.listen(8080, '0.0.0.0');\n\n# Для Flask/Gunicorn:\ngunicorn -w 4 -b 0.0.0.0:8080 app:app\n\n# Проверьте файрвол\nsudo ufw status\nsudo iptables -L -n | grep 8080\n\n# Разрешите порт если нужно\nsudo ufw allow 8080/tcp\n```  \n**Шаг 4: Решение проблемы с Timeouts**  \nЕсли upstream обрабатывает запросы слишком долго:  \n```bash\n# Увеличьте таймауты в nginx.conf или в location блоке\nsudo nano /etc/nginx/nginx.conf\n```  \nДобавьте в http блок или location:  \n```nginx\nproxy_connect_timeout 300s;\nproxy_send_timeout 300s;\nproxy_read_timeout 300s;\nsend_timeout 300s;\n```  \nОптимизируйте backend приложение:  \n```bash\n# Проверьте slow queries (для DB-heavy приложений)\n# PostgreSQL:\npsql -c \"SELECT pid, state, query_start, query FROM pg_stat_activity WHERE state != 'idle' ORDER BY query_start LIMIT 10;\"\n\n# MySQL:\nmysql -e \"SHOW FULL PROCESSLIST;\"\n\n# Добавьте индексы, оптимизируйте запросы\n# Масштабируйте horizontally – добавьте больше upstream серверов\n```  \n**Шаг 5: Исправление прав доступа на proxy cache**  \nЕсли ошибка связана с правами:  \n```bash\n# Проверьте владельца директорий\nls -la /var/lib/nginx/\nls -la /var/lib/nginx/proxy/\n\n# Исправьте права\nsudo chown -R www-data:www-data /var/lib/nginx/proxy/\nsudo chmod -R 755 /var/lib/nginx/proxy/\n\n# Или очистите cache\nsudo rm -rf /var/lib/nginx/proxy/*\nsudo systemctl restart nginx\n```  \n**Шаг 6: Мониторинг и алертинг**  \n```bash\n# Настройте мониторинг upstream в nginx\n# Используйте nginx-module-vts или commercial nginx plus\n\n# Добавьте healthcheck скрипт\ncat > /usr/local/bin/nginx_upstream_check.sh <<'EOF'\n#!/bin/bash\nSTATUS=$(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8080/health)\nif [ \"$STATUS\" != \"200\" ]; then\necho \"Upstream is down! Status: $STATUS\"\nsystemctl restart app-backend\ncurl -X POST https://hooks.slack.com/services/YOUR/WEBHOOK \\\n-d '{\"text\":\"Upstream backend restarted due to health check failure\"}'\nfi\nEOF\n\nchmod +x /usr/local/bin/nginx_upstream_check.sh\necho \"*/2 * * * * /usr/local/bin/nginx_upstream_check.sh\" | crontab -\n\n# Настройте Prometheus nginx-exporter\n# https://github.com/nginxinc/nginx-prometheus-exporter\n```  \n**Шаг 7: Постоянное решение**  \n- Используйте connection pooling и keepalive\n- Настройте graceful shutdown для backend приложений\n- Добавьте health check endpoints\n- Используйте load balancing с несколькими upstream серверами\n- Включите circuit breaker pattern на уровне приложения\n- Настройте auto-scaling для backend (k8s HPA, AWS ASG)",
+          "score": 0.13985256850719452
+        },
+        {
+          "source": "03-nginx-502-bad-gateway.md",
+          "content": "Проверьте статус Nginx и upstream серверов:  \n```bash\n# Проверьте, запущен ли Nginx\nsudo systemctl status nginx\nsudo nginx -t  # Проверка конфигурации\n\n# Посмотрите error log в реальном времени\nsudo tail -f /var/log/nginx/error.log\n\n# Проверьте access log для паттернов\nsudo tail -f /var/log/nginx/access.log | grep \" 502 \"\n```  \n```bash\n# Проверьте доступность upstream серверов\ncurl -v http://127.0.0.1:8080/health\ncurl -v http://10.0.2.15:3000/health\n\n# Проверьте, что порты слушаются\nsudo netstat -tlnp | grep -E ':8080|:3000|:9000'\n# или\nsudo ss -tlnp | grep -E ':8080|:3000'\n\n# Проверьте connectivity\ntelnet 127.0.0.1 8080\nnc -zv 10.0.2.15 3000\n```  \n```bash\n# Проверьте процессы backend приложений\nps aux | grep -E 'node|python|java|gunicorn|uvicorn' | grep -v grep\n\n# Проверьте load average и ресурсы\nuptime\ntop -bn1 | head -20\nfree -h\n\n# Проверьте количество соединений к upstream\nnetstat -an | grep :8080 | wc -l\nss -tan | grep :3000 | grep ESTAB | wc -l\n```",
+          "score": 0.08462020754814148
+        },
+        {
+          "source": "nginx-emergency.md",
+          "content": "Перед перезапуском всегда проверяйте синтаксис конфигов, чтобы не \"положить\" сервис окончательно.  \n```bash\nnginx -t\n```  \n> ⚠️ NOTE: Если вы видите ошибку `nginx: [emerg] bind() to 0.0.0.0:80 failed (98: Address already in use)`, значит порт занят другим процессом (например, Apache).",
+          "score": 0.04602866619825363
+        },
+        {
+          "source": "notif-api-docs.md",
+          "content": "Сервис возвращает стандартные HTTP коды. 503 означает переполнение очереди RabbitMQ.",
+          "score": 0.006836740765720606
+        }
+      ],
+      "footnotes": [
+        {
+          "doc_id": 1,
+          "service": "/",
+          "title": "quick-notes.md",
+          "source_file": "quick-notes.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Быстрые заметки по troubleshooting Nginx",
+          "url": null
+        },
+        {
+          "doc_id": 4,
+          "service": "/",
+          "title": "nginx-emergency.md",
+          "source_file": "nginx-emergency.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Процедура перезапуска веб-сервера Nginx при аварийных ситуациях > Типовые ошибки в логах",
+          "url": null
+        },
+        {
+          "doc_id": 6,
+          "service": "/",
+          "title": "quick-notes.md",
+          "source_file": "quick-notes.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Быстрые заметки по troubleshooting Nginx > Logs investigation",
+          "url": null
+        },
+        {
+          "doc_id": 7,
+          "service": "nginx",
+          "title": "03-nginx-502-bad-gateway.md",
+          "source_file": "03-nginx-502-bad-gateway.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Nginx: 502 Bad Gateway > Решение",
+          "url": null
+        },
+        {
+          "doc_id": 8,
+          "service": "nginx",
+          "title": "03-nginx-502-bad-gateway.md",
+          "source_file": "03-nginx-502-bad-gateway.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Nginx: 502 Bad Gateway > Диагностика",
+          "url": null
+        }
+      ],
+      "latency_sec": 9.991079292958602,
+      "answer_type": "final_answer",
+      "trace": [],
+      "timings": {
+        "query_expansion_sec": 1.3339541669702157,
+        "retrieve_sec": 0.7868033340200782,
+        "rerank_sec": 1.7201820829650387,
+        "llm_analysis_sec": 0.0004757089773193002,
+        "llm_generation_sec": 6.14966400002595,
+        "total_sec": 9.991079292958602
+      },
+      "ragas_scores": null
+    },
+    "ragas_scores": null,
+    "error": null,
+    "keywords": [
+      "502",
+      "Bad Gateway",
+      "Connection refused",
+      "upstream",
+      "недоступен"
+    ],
+    "meta": {
+      "expected_tools": [
+        "rag_search"
+      ],
+      "reference_contexts": [
+        "03-nginx-502-bad-gateway.md"
+      ]
+    }
+  },
+  {
+    "id": "q_002",
+    "question": "Что означает exit code 137 для Docker контейнера и какая наиболее вероятная причина?",
+    "expected_answer": "Exit code 137 указывает на то, что процесс контейнера был принудительно завершен сигналом SIGKILL (9). Наиболее частая причина — срабатывание OOM Killer (Out Of Memory) из-за превышения лимита памяти, установленного для контейнера (Docker memory limit) или нехватки системной памяти. Docker inspect в таких случаях показывает 'OOMKilled: true'.",
+    "source_file": "",
+    "difficulty": "simple",
+    "category": "factual_simple",
+    "rag_output": {
+      "generated_answer": "Docker контейнер внезапно останавливается с exit code 137. В логах контейнера может не быть явной ошибки. Приложение работает нормально, затем резко падает. Docker inspect показывает OOMKilled: true. Проблема периодически повторяется. Контейнер использует больше памяти, чем выделенный лимит [1].\n\nContainer killed by Docker runtime  \nExit Code: 137  \nOOMKilled: true  \nMemory limit: 2147483648 (2GB)  \nMemory usage at death: 2147483648 (2GB)  \nProcess received: SIGKILL [3]\n\nDocker container: data-processor  \nCgroup: /docker/a8f3c924b871  \nNov 28 16:34:47 docker-host kernel: [18472.847291] Memory cgroup out of memory: Killed process 18293 (java) total-vm:4194304kB, anon-rss:2097152kB, file-rss:0kB, shmem-rss:0kB  \nNov 28 16:34:47 docker-host kernel: [18472.847412] oom_reaper: reaped process 18293 (java), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB [3]\n\npython3: Fatal Python error: Cannot allocate memory  \nMemory requested: 512MB  \nAvailable memory: 128MB  \nContainer memory limit: 2GB  \nRSS usage: 2.1GB (exceeded limit)  \nSwap disabled  \nExit code: 137  \nSignal: SIGKILL (9) [3]",
+      "rewritten_query": "",
+      "retrieved_contexts": [
+        {
+          "source": "06-docker-exit-code-137.md",
+          "content": "Docker контейнер внезапно останавливается с exit code 137. В логах контейнера может не быть явной ошибки. Приложение работает нормально, затем резко падает. Docker inspect показывает OOMKilled: true. Проблема периодически повторяется. Контейнер использует больше памяти, чем выделенный лимит.",
+          "score": 0.9792263507843018
+        },
+        {
+          "source": "02-k8s-crashloopbackoff.md",
+          "content": "```text\n2025-11-28T14:42:33.192847Z INFO  Starting payment-gateway service v2.4.1\n2025-11-28T14:42:33.294102Z INFO  Loading configuration from /etc/config/app.yaml\n2025-11-28T14:42:33.294847Z ERROR Failed to parse configuration file\nError: yaml: unmarshal errors:\nline 12: cannot unmarshal !!str `${DATAB...` into string\nline 18: field redis.timeout not found in type config.RedisConfig\n2025-11-28T14:42:33.295012Z FATAL Configuration validation failed, exiting\n2025-11-28T14:42:33.295124Z INFO  Shutdown signal received\nthread 'main' panicked at 'called `Result::unwrap()` on an `Err` value: ConfigError', src/main.rs:45:47\nstack backtrace:\n0: rust_begin_unwind\nat /rustc/9b00956e5/library/std/src/panicking.rs:584:5\n1: core::panicking::panic_fmt\nat /rustc/9b00956e5/library/core/src/panicking.rs:142:14\n2: core::result::unwrap_failed\nat /rustc/9b00956e5/library/core/src/result.rs:1814:5\n3: payment_gateway::main\nat ./src/main.rs:45\nProcess exited with code 1\nPod payment-gateway-7d5f8c9b4-xk7m2 in namespace production\nContainer ID: containerd://a8f3c924b871d4e9f2a6c3b8d7e5f1a0c2b9e4d3\nExit Code: 1\n```  \n```text\n[2025-11-28 14:45:18] INFO  [main] com.company.ApiGateway - Starting ApiGateway Application\n[2025-11-28 14:45:19] INFO  [main] o.s.boot.SpringApplication - Spring Boot v3.1.5\n[2025-11-28 14:45:22] ERROR [main] o.s.boot.diagnostics.LoggingFailureAnalysisReporter\n***************************\nAPPLICATION FAILED TO START\n***************************\n\nDescription:\n\nFailed to bind properties under 'spring.datasource.url' to java.lang.String:\n\nProperty: spring.datasource.url\nValue: ${DB_CONNECTION_STRING}\nOrigin: class path resource [application.yml] - 12:9\nReason: Could not resolve placeholder 'DB_CONNECTION_STRING' in value \"${DB_CONNECTION_STRING}\"\n\nAction:\n\nUpdate your application's configuration\nCaused by: java.lang.IllegalArgumentException: Could not resolve placeholder 'DB_CONNECTION_STRING' in value \"${DB_CONNECTION_STRING}\"\nat org.springframework.util.PropertyPlaceholderHelper.parseStringValue(PropertyPlaceholderHelper.java:180)\nat org.springframework.boot.context.properties.source.ConfigurationPropertySourcesPropertyResolver.getProperty(ConfigurationPropertySourcesPropertyResolver.java:82)\nProcess terminated with exit code 1\nContainer api-gateway exited\nReason: Error\nExit Code: 1\nSignal: null\n```  \n```text\nNov 28 14:48:52.441 [worker-thread-8] ERROR i.n.u.ResourceLeakDetector - LEAK: ByteBuf.release() was not called before it's garbage-collected.\nRecent access records:\nCreated at:\nio.netty.buffer.PooledByteBufAllocator.newDirectBuffer(PooledByteBufAllocator.java:341)\nio.netty.buffer.AbstractByteBufAllocator.directBuffer(AbstractByteBufAllocator.java:187)\nNov 28 14:48:53.127 [main] FATAL c.c.s.WebServer - Fatal error during startup\njava.lang.OutOfMemoryError: Java heap space\nat java.base/java.nio.HeapByteBuffer.<init>(HeapByteBuffer.java:61)\nat java.base/java.nio.ByteBuffer.allocate(ByteBuffer.java:335)\nat com.company.service.CacheManager.loadCache(CacheManager.java:94)\nat com.company.service.WebServer.start(WebServer.java:156)\nDumping heap to /tmp/java_pid1.hprof ...\nHeap dump file created [2147483648 bytes in 3.421 secs]\nContainer killed by Kubernetes (OOMKilled)\nExit Code: 137\nSignal: SIGKILL\nReason: OOMKilled\nLast State: Terminated\nReason: OOMKilled\nExit Code: 137\nStarted: 2025-11-28T14:48:49Z\nFinished: 2025-11-28T14:48:53Z\n```",
+          "score": 0.9773180484771729
+        },
+        {
+          "source": "06-docker-exit-code-137.md",
+          "content": "```text\n[2025-11-28T16:32:18.392Z] INFO Application started successfully\n[2025-11-28T16:32:45.718Z] INFO Processing batch job: 15000 items\n[2025-11-28T16:33:12.847Z] WARN Memory usage: 1.8GB / 2GB\n[2025-11-28T16:33:15.294Z] INFO Loading data into memory...\nContainer killed by Docker runtime\nExit Code: 137\nOOMKilled: true\nMemory limit: 2147483648 (2GB)\nMemory usage at death: 2147483648 (2GB)\nProcess received: SIGKILL\nContainer ID: a8f3c924b871\nImage: company/data-processor:v1.2.3\n```  \n```text\nNov 28 16:34:47 docker-host kernel: [18472.847291] Memory cgroup out of memory: Killed process 18293 (java) total-vm:4194304kB, anon-rss:2097152kB, file-rss:0kB, shmem-rss:0kB\nNov 28 16:34:47 docker-host kernel: [18472.847412] oom_reaper: reaped process 18293 (java), now anon-rss:0kB, file-rss:0kB, shmem-rss:0kB\nNov 28 16:34:47 docker-host dockerd[1247]: time=\"2025-11-28T16:34:47.192847Z\" level=warning msg=\"Container a8f3c924b871 failed to exit within 10 seconds of signal SIGTERM - using SIGKILL\"\nNov 28 16:34:47 docker-host dockerd[1247]: time=\"2025-11-28T16:34:47.294102Z\" level=info msg=\"Container a8f3c924b871d4e9f2a6c3b8d7e5f1a0 exited with code 137\"\nDocker container: data-processor\nCgroup: /docker/a8f3c924b871\n```  \n```text\npython3: Fatal Python error: Cannot allocate memory\nStack (most recent call first):\nFile \"/app/processor.py\", line 147, in process_large_file\nFile \"/app/main.py\", line 89, in main\nMemory requested: 512MB\nAvailable memory: 128MB\nContainer memory limit: 2GB\nRSS usage: 2.1GB (exceeded limit)\nSwap disabled\nExit code: 137\nSignal: SIGKILL (9)\nContainer: data-processor-prod\nRestart count: 15\nLast restart: 2025-11-28T16:34:47Z\n```",
+          "score": 0.936936616897583
+        },
+        {
+          "source": "02-k8s-crashloopbackoff.md",
+          "content": "**Шаг 1: Определение root cause из логов**  \nАнализируйте exit code для понимания проблемы:  \n- **Exit Code 1**: Ошибка приложения (неправильная конфигурация, exception)\n- **Exit Code 137**: OOMKilled (нехватка памяти)\n- **Exit Code 139**: Segmentation fault (SIGSEGV)\n- **Exit Code 143**: SIGTERM (graceful shutdown)  \n```bash\n# Получите последний exit code\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.status.containerStatuses[0].lastState.terminated.exitCode}'\n\n# Получите причину\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.status.containerStatuses[0].lastState.terminated.reason}'\n```  \n**Шаг 2: Исправление проблем конфигурации**  \nЕсли проблема в missing environment variables:  \n```bash\n# Проверьте, что все нужные переменные определены\nkubectl get deployment payment-gateway -n production -o yaml | grep -A 20 \"env:\"\n\n# Обновите deployment с правильными переменными\nkubectl set env deployment/payment-gateway -n production DB_CONNECTION_STRING=\"postgresql://user:pass@db:5432/prod\"\n\n# Или отредактируйте напрямую\nkubectl edit deployment payment-gateway -n production\n```  \nЕсли проблема в ConfigMap:  \n```bash\n# Проверьте содержимое ConfigMap\nkubectl get configmap app-config -n production -o yaml\n\n# Исправьте ConfigMap\nkubectl edit configmap app-config -n production\n\n# Форсируйте обновление подов\nkubectl rollout restart deployment/payment-gateway -n production\n```  \n**Шаг 3: Решение проблемы OOMKilled**  \nЕсли exit code 137 (OOMKilled):  \n```bash\n# Увеличьте memory limits\nkubectl patch deployment payment-gateway -n production -p '\nspec:\ntemplate:\nspec:\ncontainers:\n- name: payment-gateway\nresources:\nrequests:\nmemory: \"512Mi\"\ncpu: \"250m\"\nlimits:\nmemory: \"2Gi\"\ncpu: \"1000m\"\n'\n\n# Проверьте применение\nkubectl rollout status deployment/payment-gateway -n production\n```  \nДля Java приложений настройте JVM heap:  \n```bash\nkubectl set env deployment/payment-gateway -n production \\\nJAVA_OPTS=\"-Xms512m -Xmx1536m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC\"\n```  \n**Шаг 4: Настройка Health Checks**  \nЕсли приложение падает из-за неправильных probes:  \n```bash\n# Создайте или обновите deployment с правильными probes\nkubectl apply -f - <<EOF\napiVersion: apps/v1\nkind: Deployment\nmetadata:\nname: payment-gateway\nnamespace: production\nspec:\nreplicas: 3\nselector:\nmatchLabels:\napp: payment-gateway\ntemplate:\nmetadata:\nlabels:\napp: payment-gateway\nspec:\ncontainers:\n- name: payment-gateway\nimage: company/payment-gateway:v2.4.1\nports:\n- containerPort: 8080\nlivenessProbe:\nhttpGet:\npath: /healthz\nport: 8080\ninitialDelaySeconds: 30\nperiodSeconds: 10\ntimeoutSeconds: 5\nfailureThreshold: 3\nreadinessProbe:\nhttpGet:\npath: /ready\nport: 8080\ninitialDelaySeconds: 10\nperiodSeconds: 5\ntimeoutSeconds: 3\nfailureThreshold: 3\nresources:\nrequests:\nmemory: \"512Mi\"\ncpu: \"250m\"\nlimits:\nmemory: \"2Gi\"\ncpu: \"1000m\"\nEOF\n```  \n**Шаг 5: Debug с временным контейнером**  \nЕсли проблема сложная, запустите debug session:  \n```bash\n# Для Kubernetes 1.23+\nkubectl debug payment-gateway-7d5f8c9b4-xk7m2 -n production -it --image=busybox --share-processes\n\n# Или создайте pod с тем же манифестом, но с другой командой\nkubectl run payment-gateway-debug -n production --image=company/payment-gateway:v2.4.1 --command -- /bin/sh -c \"sleep 3600\"\n\n# Войдите в контейнер\nkubectl exec -it payment-gateway-debug -n production -- /bin/bash\n\n# Проверьте файловую систему, переменные, конфиги\nls -la /etc/config/\ncat /etc/config/app.yaml\nenv | sort\n```  \n**Шаг 6: Мониторинг и алертинг**  \n```bash\n# Создайте PrometheusRule для алертов\ncat > crash-loop-alert.yaml <<EOF\napiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\nname: pod-crash-loop-alert\nnamespace: monitoring\nspec:\ngroups:\n- name: kubernetes.pods\ninterval: 30s\nrules:\n- alert: PodCrashLooping\nexpr: rate(kube_pod_container_status_restarts_total[15m]) > 0\nfor: 5m\nlabels:\nseverity: critical\nannotations:\nsummary: \"Pod {{ \\$labels.namespace }}/{{ \\$labels.pod }} is crash looping\"\ndescription: \"Pod has restarted {{ \\$value }} times in the last 15 minutes\"\nEOF\n\nkubectl apply -f crash-loop-alert.yaml\n```  \n**Шаг 7: Профилактика**  \n- Всегда используйте health checks (liveness + readiness)\n- Устанавливайте адекватные resource requests/limits\n- Тестируйте deployment в staging окружении\n- Используйте init containers для pre-flight checks\n- Включите graceful shutdown в приложении\n- Логируйте подробно startup sequence",
+          "score": 0.5660904049873352
+        },
+        {
+          "source": "02-k8s-crashloopbackoff.md",
+          "content": "Проверьте статус пода и причину падения:  \n```bash\n# Получите список подов с проблемами\nkubectl get pods -A | grep -E 'CrashLoopBackOff|Error|OOMKilled'\n\n# Детальная информация о проблемном поде\nkubectl describe pod payment-gateway-7d5f8c9b4-xk7m2 -n production\n\n# Проверьте логи контейнера (текущего)\nkubectl logs payment-gateway-7d5f8c9b4-xk7m2 -n production\n\n# Проверьте логи предыдущего контейнера (который упал)\nkubectl logs payment-gateway-7d5f8c9b4-xk7m2 -n production --previous\n\n# Если несколько контейнеров в поде\nkubectl logs payment-gateway-7d5f8c9b4-xk7m2 -n production -c main-app --previous\n```  \n```bash\n# Проверьте events в namespace\nkubectl get events -n production --sort-by='.lastTimestamp' | tail -20\n\n# Проверьте ресурсы пода\nkubectl top pod payment-gateway-7d5f8c9b4-xk7m2 -n production\n\n# Проверьте лимиты и requests\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o jsonpath='{.spec.containers[*].resources}'\n```  \n```bash\n# Проверьте ConfigMaps и Secrets\nkubectl get configmap -n production\nkubectl describe configmap app-config -n production\n\n# Проверьте переменные окружения\nkubectl exec payment-gateway-7d5f8c9b4-xk7m2 -n production -- env\n\n# Проверьте readiness/liveness probes\nkubectl get pod payment-gateway-7d5f8c9b4-xk7m2 -n production -o yaml | grep -A 10 \"livenessProbe\\|readinessProbe\"\n```",
+          "score": 0.2111256867647171
+        },
+        {
+          "source": "06-docker-exit-code-137.md",
+          "content": "```bash\n# Проверьте статус контейнера\ndocker ps -a | grep data-processor\ndocker inspect data-processor | grep -A 10 \"State\"\ndocker inspect data-processor | grep \"OOMKilled\"\n\n# Посмотрите exit code\ndocker inspect data-processor --format='{{.State.ExitCode}}'\n\n# Проверьте лимиты памяти\ndocker stats data-processor --no-stream\ndocker inspect data-processor | grep -i memory\n\n# Проверьте kernel logs\nsudo dmesg | grep -i \"out of memory\"\nsudo journalctl -k | grep -i oom\n```",
+          "score": 0.18564192950725555
+        },
+        {
+          "source": "stream-debug.md",
+          "content": "Поскольку Kafka работает внутри Docker, проверьте настройки `KAFKA_ADVERTISED_LISTENERS`. Неправильная конфигурация может привести к тому, что клиент будет пытаться подключиться к внутреннему IP контейнера, который недоступен снаружи.",
+          "score": 0.05456513538956642
+        },
+        {
+          "source": "stream-debug.md",
+          "content": "Часто причиной является throttling CPU или нехватка памяти, из-за чего JVM Garbage Collector начинает работать слишком агрессивно.  \n```bash\ndocker stats my-consumer-container\n```  \n> ⚠️ WARNING: Если CPU Usage приближается к лимиту, установленному в docker-compose или k8s, Kafka Consumer может пропускать heartbeats, что приведет к постоянным ребалансировкам (rebalancing).",
+          "score": 0.05304863676428795
+        },
+        {
+          "source": "mongo-auth-error.md",
+          "content": "Если вы запутались в паролях на этапе разработки:\n1. Остановите контейнеры: `docker-compose down`.\n2. Удалите volume (ВНИМАНИЕ: данные будут потеряны): `docker volume rm project_mongo_data`.\n3. Запустите заново: `docker-compose up -d`.",
+          "score": 0.0280491653829813
+        },
+        {
+          "source": "ansible-cleanup.md",
+          "content": "Если на сервере запущен Docker, он часто является причиной нехватки места из-за старых слоев и образов.  \n```bash\nansible web_servers -m shell -a \"docker system prune -af\" -i inventory.ini --become\n```",
+          "score": 0.013603624887764454
+        }
+      ],
+      "footnotes": [
+        {
+          "doc_id": 1,
+          "service": "docker",
+          "title": "06-docker-exit-code-137.md",
+          "source_file": "06-docker-exit-code-137.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Docker: Container Exit Code 137 > Симптомы",
+          "url": null
+        },
+        {
+          "doc_id": 3,
+          "service": "docker",
+          "title": "06-docker-exit-code-137.md",
+          "source_file": "06-docker-exit-code-137.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Docker: Container Exit Code 137 > Логи и Сообщения об ошибках",
+          "url": null
+        }
+      ],
+      "latency_sec": 10.403999081929214,
+      "answer_type": "final_answer",
+      "trace": [],
+      "timings": {
+        "query_expansion_sec": 0.716474000015296,
+        "retrieve_sec": 0.434690082911402,
+        "rerank_sec": 4.314167583012022,
+        "llm_analysis_sec": 0.001031499938108027,
+        "llm_generation_sec": 4.937635916052386,
+        "total_sec": 10.403999081929214
+      },
+      "ragas_scores": null
+    },
+    "ragas_scores": null,
+    "error": null,
+    "keywords": [
+      "OOMKilled",
+      "SIGKILL",
+      "память",
+      "memory limit"
+    ],
+    "meta": {
+      "expected_tools": [
+        "rag_search"
+      ],
+      "reference_contexts": [
+        "06-docker-exit-code-137.md"
+      ]
+    }
+  },
+  {
+    "id": "q_003",
+    "question": "Какой параметр в postgresql.conf на мастере отвечает за уровень записи WAL для репликации и какое значение он должен принимать?",
+    "expected_answer": "Параметр `wal_level` определяет количество информации, записываемой в WAL. Для настройки репликации (как Streaming, так и архивной) он должен быть установлен в значение `replica` (или `logical`, если планируется логическая репликация, так как `logical` включает в себя `replica`). Значение `minimal` не поддерживает репликацию.",
+    "source_file": "",
+    "difficulty": "medium",
+    "category": "factual_simple",
+    "rag_output": {
+      "generated_answer": "Параметр в `postgresql.conf` для уровня записи WAL репликации — `wal_level = replica` [1].",
+      "rewritten_query": "",
+      "retrieved_contexts": [
+        {
+          "source": "11-postgresql-replication-guide.md",
+          "content": "```bash\n# На мастере, от имени postgres\nsudo -u postgres psql -c \"CREATE ROLE replicator WITH REPLICATION LOGIN ENCRYPTED PASSWORD 'StrongPass123';\"\n```  \n```ini\n# postgresql.conf (мастер)\nwal_level = replica               # включить запись WAL для репликации\nmax_wal_senders = 10              # количество процессов отправки WAL\nwal_keep_segments = 64            # сколько сегментов WAL хранить\nhot_standby = on                  # разрешить запросы на реплике\n```  \n```ini\n# pg_hba.conf (мастер)\n# Разрешить репликацию от реплик\nhost    replication     replicator      10.0.0.0/24          md5\n```  \nПерезапустите PostgreSQL:  \n```bash\nsudo systemctl restart postgresql\n```",
+          "score": 0.991854190826416
+        },
+        {
+          "source": "11-postgresql-replication-guide.md",
+          "content": "- ОС: Linux (Ubuntu 20.04+, CentOS 8+)\n- PostgreSQL: версии 12‑15\n- Доступ к сети между мастером и репликами (порт 5432)\n- Пользователь `replicator` с правом REPLICATION на мастере",
+          "score": 0.18437902629375458
+        },
+        {
+          "source": "11-postgresql-replication-guide.md",
+          "content": "Репликация PostgreSQL обеспечивает высокую доступность и масштабируемость чтения, позволяя синхронно или асинхронно копировать данные с мастера на реплики. Это критически важно для отказоустойчивых продакшн‑систем, где требуется минимальное время простоя и возможность распределения нагрузки на чтение.",
+          "score": 0.15577225387096405
+        },
+        {
+          "source": "11-postgresql-replication-guide.md",
+          "content": "1. Выполните `SELECT now();` на реплике – время должно отставать не более нескольких секунд от мастера.\n2. Сгенерируйте нагрузку записи на мастере и убедитесь, что изменения появляются на реплике (например, `INSERT INTO test VALUES (1);`).\n3. Проверьте отсутствие ошибок в логах `/var/log/postgresql/postgresql-15-main.log`.\n4. При необходимости переключите реплику в роль мастера, создав `trigger_file`.",
+          "score": 0.08585317432880402
+        },
+        {
+          "source": "db-migration-rds.md",
+          "content": "1. Создайте **Source Endpoint** (MySQL).\n2. Создайте **Target Endpoint** (RDS PostgreSQL).\n3. Создайте **Replication Task** с типом `Full load and ongoing replication`.",
+          "score": 0.035602979362010956
+        },
+        {
+          "source": "26-postgres-connection-refused.md",
+          "content": "1. Проверьте статус сервиса:\n```bash\nsudo systemctl status postgresql\n```\n2. Проверьте файл `postgresql.conf` и параметр `listen_addresses`. Он должен быть установлен в `'*'` или конкретный IP (не только `'localhost'`, если подключаетесь извне).\n```ini\nlisten_addresses = '*'\n```",
+          "score": 0.027085989713668823
+        },
+        {
+          "source": "11-postgresql-replication-guide.md",
+          "content": "```bash\n# На реплике\nsudo -u postgres psql -c \"SELECT pg_is_in_recovery();\"\n# Ожидается: true\n```  \n```bash\n# На мастере\nsudo -u postgres psql -c \"SELECT client_addr, state FROM pg_stat_replication;\"\n```",
+          "score": 0.02251703292131424
+        },
+        {
+          "source": "14-mysql-replication-guide.md",
+          "content": "Репликация MySQL позволяет создавать копию данных в режиме реального времени, повышая отказоустойчивость и масштабируемость чтения. В продакшн‑окружении обычно используют асинхронную репликацию с GTID, что упрощает переключения мастера.",
+          "score": 0.022157423198223114
+        },
+        {
+          "source": "14-mysql-replication-guide.md",
+          "content": "- ОС: Linux (Ubuntu 20.04+, CentOS 8+)\n- MySQL Server 8.0+\n- Доступ к сети между мастером и слейвами (порт 3306)\n- Пользователь `repl` с правом REPLICATION SLAVE на мастере",
+          "score": 0.019113168120384216
+        },
+        {
+          "source": "sre-engineering-handbook.md",
+          "content": "Для каждого критического алерта ДОЛЖЕН существовать ранбук.\n- [Пример: Ошибки 502 в Nginx](03-nginx-502-bad-gateway.md)\n- [Пример: Репликация Postgres](11-postgresql-replication-guide.md)  \n---",
+          "score": 0.017461862415075302
+        }
+      ],
+      "footnotes": [
+        {
+          "doc_id": 1,
+          "service": "postgres",
+          "title": "11-postgresql-replication-guide.md",
+          "source_file": "11-postgresql-replication-guide.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Настройка репликации PostgreSQL > Пошаговая инструкция > Шаг 1: Подготовка мастера",
+          "url": null
+        }
+      ],
+      "latency_sec": 6.3424250400858,
+      "answer_type": "final_answer",
+      "trace": [],
+      "timings": {
+        "query_expansion_sec": 1.9996105410391465,
+        "retrieve_sec": 0.5433222079882398,
+        "rerank_sec": 1.5535114579834044,
+        "llm_analysis_sec": 0.00035737501457333565,
+        "llm_generation_sec": 2.245623458060436,
+        "total_sec": 6.3424250400858
+      },
+      "ragas_scores": null
+    },
+    "ragas_scores": null,
+    "error": null,
+    "keywords": [
+      "wal_level",
+      "replica"
+    ],
+    "meta": {
+      "expected_tools": [
+        "rag_search"
+      ],
+      "reference_contexts": [
+        "11-postgresql-replication-guide.md"
+      ]
+    }
+  },
+  {
+    "id": "q_004",
+    "question": "Как называется таблица в DynamoDB для блокировок Terraform state и какой ключ partition key она должна иметь?",
+    "expected_answer": "Для блокировки состояния Terraform (State Locking) рекомендуется создать таблицу DynamoDB (обычно с именем `terraform-state-lock`). Критически важно, чтобы таблица имела Partition Key с точным именем `LockID` (тип String), иначе Terraform не сможет захватить лок.",
+    "source_file": "",
+    "difficulty": "medium",
+    "category": "factual_simple",
+    "rag_output": {
+      "generated_answer": "DynamoDB таблица для блокировок Terraform state использует атрибут `LockID` в качестве ключа раздела [2].\n\n```bash\naws dynamodb create-table \\\n--table-name terraform-state-lock \\\n--attribute-definitions AttributeName=LockID,AttributeType=S \\\n--key-schema AttributeName=LockID,KeyType=HASH \\\n--provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5\n```\n\n[2]",
+      "rewritten_query": "",
+      "retrieved_contexts": [
+        {
+          "source": "aws-s3-terraform.md",
+          "content": "После выполнения этих шагов ваш `backend` блок в Terraform будет выглядеть так:  \n```hcl\nterraform {\nbackend \"s3\" {\nbucket         = \"my-company-terraform-state\"\nkey            = \"global/s3/terraform.tfstate\"\nregion         = \"us-east-1\"\ndynamodb_table = \"terraform-state-lock\"\nencrypt        = true\n}\n}\n```  \n> ⚠️ NOTE: Никогда не храните конфиденциальные данные в открытом виде в tfstate, даже если он зашифрован в S3.",
+          "score": 0.9267535209655762
+        },
+        {
+          "source": "aws-s3-terraform.md",
+          "content": "Для предотвращения одновременного внесения изменений несколькими инженерами необходимо использовать DynamoDB.  \n```bash\naws dynamodb create-table \\\n--table-name terraform-state-lock \\\n--attribute-definitions AttributeName=LockID,AttributeType=S \\\n--key-schema AttributeName=LockID,KeyType=HASH \\\n--provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5\n```  \n![Настройка в консоли AWS](path/to/s3_console_setup.png)",
+          "score": 0.8798514008522034
+        },
+        {
+          "source": "sre-engineering-handbook.md",
+          "content": "- Модульность: Используйте общие модули из приватного реестра.\n- State: Храните только в S3 с блокировкой через DynamoDB.\n- [План миграции на IaC](bare-metal-to-k8s-migration.md)",
+          "score": 0.09261838346719742
+        },
+        {
+          "source": "kafka-cluster-partitioning-strategy.md",
+          "content": "| Topic Name | Partitions | Retention |\n| :--- | :--- | :--- |\n| orders.created | 24 | 7 days |\n| orders.cancelled | 12 | 7 days |\n| payments.status | 32 | 14 days |",
+          "score": 0.05013158172369003
+        },
+        {
+          "source": "kafka-cluster-partitioning-strategy.md",
+          "content": "```go\n// Message structure example\ntype OrderEvent struct {\nOrderID   string    `json:\"order_id\"` // This will be the partition key\nStatus    string    `json:\"status\"`\nTimestamp time.Time `json:\"ts\"`\n}\n```",
+          "score": 0.0474911630153656
+        },
+        {
+          "source": "gcp-terraform-setup.md",
+          "content": "- Check the [Terraform Registry](https://registry.terraform.io/providers/hashicorp/google/latest/docs) for updates.\n- Use `terraform state list` to see current managed resources.",
+          "score": 0.009823082014918327
+        },
+        {
+          "source": "cassandra-dr-runbook.md",
+          "content": "Используйте Terraform для создания нод в регионе Secondary.\n```bash\ncd terraform/cassandra-dr\nterraform apply -var=\"region=eu-central-1\"\n```",
+          "score": 0.008844830095767975
+        },
+        {
+          "source": "aws-s3-terraform.md",
+          "content": "Создайте бакет с уникальным именем. Рекомендуется использовать префикс компании.  \n```bash\naws s3api create-bucket --bucket my-company-terraform-state --region us-east-1\n```",
+          "score": 0.006358661223202944
+        },
+        {
+          "source": "vault-root-ca-expiration.md",
+          "content": "| Задача | Ответственный | Статус |\n| :--- | :--- | :--- |\n| **Мониторинг**: Добавить `blackbox_exporter` проверку срока действия сертификата на порту 8200. | @monitoring-team | Done |\n| **Автоматизация**: Перенести Root CA в управляемый сервис (AWS Private CA или HashiCorp Vault PKI engine) с автопродлением. | @sre-lead | In Progress |\n| **Документация**: Создать ранбук по экстренной замене сертификатов в Vault (без доступа к API). | @security-engineer | Done |\n| **Аудит**: Проверить сроки действия всех Root CA в других кластерах (K8s, Kafka, Redis). | @devops-team | Done |",
+          "score": 0.006041050888597965
+        },
+        {
+          "source": "postgres-reindex-runbook.md",
+          "content": "1. **Мониторинг нагрузки**:\nЗайдите в Grafana и убедитесь, что CPU Load на БД < 50%.  \n2. **Создание индекса \"рядом\" (CONCURRENTLY)**:\n```sql\n-- Выполняется без блокировки таблицы на запись\nCREATE INDEX CONCURRENTLY idx_orders_created_at_new\nON orders (created_at);\n```  \n3. **Замена старого индекса**:\nПосле завершения создания (проверить через `\\d orders`), удалите старый индекс:\n```sql\nDROP INDEX CONCURRENTLY idx_orders_created_at_old;\n```",
+          "score": 0.005777311976999044
+        }
+      ],
+      "footnotes": [
+        {
+          "doc_id": 2,
+          "service": "/",
+          "title": "aws-s3-terraform.md",
+          "source_file": "aws-s3-terraform.md",
+          "quote": "",
+          "source_type": "doc",
+          "header_path": "Инструкция по настройке S3 Bucket для хранения Terraform State > Шаг 5: Создание таблицы DynamoDB для блокировок (Locking)",
+          "url": null
+        }
+      ],
+      "latency_sec": 7.666463749948889,
+      "answer_type": "final_answer",
+      "trace": [],
+      "timings": {
+        "query_expansion_sec": 1.3043994579929858,
+        "retrieve_sec": 0.8778191249584779,
+        "rerank_sec": 3.5515733329812065,
+        "llm_analysis_sec": 0.003075334010645747,
+        "llm_generation_sec": 1.929596500005573,
+        "total_sec": 7.666463749948889
+      },
+      "ragas_scores": null
+    },
+    "ragas_scores": null,
+    "error": null,
+    "keywords": [
+      "terraform-state-lock",
+      "LockID"
+    ],
+    "meta": {
+      "expected_tools": [
+        "rag_search"
+      ],
+      "reference_contexts": [
+        "aws-s3-terraform.md"
+      ]
+    }
+  }
+]

@@ -1,0 +1,568 @@
+{
+  "metadata": {
+    "timestamp": "2026-01-23T00:06:25.549191",
+    "mode": "agent"
+  },
+  "summary": {
+    "total_questions": 10,
+    "successful": 10,
+    "failed": 0,
+    "avg_context_recall": 0.0,
+    "avg_context_precision": 0.0,
+    "avg_faithfulness": 0.0,
+    "avg_answer_relevancy": 0.0,
+    "avg_rag_latency_sec": 47.44810926659265,
+    "avg_query_expansion_sec": 1.176026,
+    "avg_retrieve_sec": 0.15724722080631182,
+    "avg_rerank_sec": 0.43369637079304085,
+    "avg_llm_analysis_sec": 0.0,
+    "avg_llm_generation_sec": 0.0
+  },
+  "by_category": {},
+  "by_difficulty": {},
+  "results": [
+    {
+      "id": "q_001",
+      "question": "Какой HTTP код ошибки возвращает Nginx при проблеме 502 Bad Gateway и что это означает для upstream?",
+      "expected_answer": "Nginx возвращает код 502 Bad Gateway. Это означает, что Nginx, действуя как шлюз или прокси, получил недопустимый ответ от вышестоящего сервера (upstream). В логах это часто коррелирует с ошибками 'Connection refused' (111) или 'upstream timed out', что указывает на то, что бэкенд выключен, перегружен или недоступен по сети.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nNginx возвращает HTTP-код 502 Bad Gateway, когда он не может получить корректный ответ от upstream-сервиса. Это означает, что upstream либо недоступен (не запущен, упал), либо не отвечает вовремя (таймаут), либо разрывает соединение (connection reset).",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "```text\n2025/11/28 15:12:47 [error] 18293#18293: *47821 connect() failed (111: Connection refused) while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\", request_id: \"a7f3c2e9b8d1\"\n2025/11/28 15:12:47 [warn] 18293#18293: *47821 upstream server temporarily disabled while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\"\n203.0.113.42 - - [28/Nov/2025:15:12:47 +0300] \"POST /api/v1/payments HTTP/1.1\" 502 157 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" rt=0.003 uct=\"-\" uht=\"-\" urt=\"-\"\n```  \n```text\n2025/11/28 15:15:33 [error] 18294#18294: *48912 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.15:3000/dashboard/analytics\", host: \"www.example.com\", referrer: \"https://www.example.com/dashboard\"\n2025/11/28 15:15:33 [error] 18294#18294: *48912 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.16:3000/dashboard/analytics\", host: \"www.example.com\"\n198.51.100.73 - - [28/Nov/2025:15:15:33 +0300] \"GET /dashboard/analytics HTTP/1.1\" 502 559 \"https://www.example.com/dashboard\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)\" rt=60.003 uct=\"60.000\" uht=\"60.000\" urt=\"60.003\"\nX-Request-ID: f8c2a91d-4e3b-4f2c-9d1e-7a8c3b2e1f90\nX-Upstream-Status: error\nX-Upstream-Response-Time: 60.003\n```  \n```text\n2025/11/28 15:18:22 [crit] 18295#18295: *49847 open() \"/var/lib/nginx/proxy/3/47/0000000473\" failed (13: Permission denied) while reading upstream, client: 192.0.2.119, server: cdn.example.com, request: \"GET /assets/bundle.js HTTP/1.1\", upstream: \"http://10.0.3.21:9000/assets/bundle.js\", host: \"cdn.example.com\"\n2025/11/28 15:18:22 [error] 18295#18295: *49847 writev() failed (32: Broken pipe) while sending request to upstream, client: 192.0.2.119, server: cdn.example.com, request: \"GET /assets/bundle.js HTTP/1.1\", upstream: \"http://10.0.3.21:9000/assets/bundle.js\", host: \"cdn.example.com\"\n192.0.2.119 - - [28/Nov/2025:15:18:22 +0300] \"GET /assets/bundle.js HTTP/1.1\" 502 166 \"-\" \"curl/7.68.0\" rt=0.127 uct=\"0.001\" uht=\"0.125\" urt=\"0.001\"\n[error] 18295#18295: *49847 upstream prematurely closed connection while reading response header from upstream\nPID: 18295\nWorker: 2\nConnection: 49847\nUpstream: 10.0.3.21:9000\n```",
+            "score": 0.286242812871933
+          },
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "**Шаг 1: Быстрая проверка upstream доступности**  \n```bash\n# Если upstream service не запущен, запустите его\nsudo systemctl status app-backend\nsudo systemctl start app-backend\nsudo systemctl enable app-backend\n\n# Для PM2 (Node.js)\npm2 list\npm2 restart app-api\n\n# Для Gunicorn (Python)\nsudo systemctl restart gunicorn\n# или\npkill -HUP gunicorn\n\n# Для Java приложений\nsudo systemctl restart tomcat\n# или проверьте через jps\njps -l\n```  \n**Шаг 2: Проверка и исправление Nginx конфигурации**  \nПроверьте upstream блок в конфигурации:  \n```bash\n# Найдите конфигурацию upstream\ngrep -r \"upstream\" /etc/nginx/sites-enabled/\ncat /etc/nginx/sites-enabled/default\n```  \nТипичные проблемы в конфигурации:  \n```nginx\n# Неправильно (если upstream на localhost)\nupstream backend {\nserver 127.0.0.1:8080;\n}\n\n# Проверьте таймауты – возможно они слишком маленькие\nproxy_connect_timeout 5s;   # Слишком мало для медленных апп\nproxy_read_timeout 10s;     # Увеличьте\n\n# Правильная конфигурация с резервированием\nupstream backend {\nserver 10.0.2.15:8080 max_fails=3 fail_timeout=30s;\nserver 10.0.2.16:8080 max_fails=3 fail_timeout=30s backup;\nkeepalive 32;\n}\n\nserver {\nlisten 80;\nserver_name api.example.com;\n\nlocation / {\nproxy_pass http://backend;\nproxy_http_version 1.1;\nproxy_set_header Connection \"\";\nproxy_set_header Host $host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n\n# Увеличьте таймауты\nproxy_connect_timeout 60s;\nproxy_send_timeout 60s;\nproxy_read_timeout 60s;\n\n# Буферизация\nproxy_buffering on;\nproxy_buffer_size 4k;\nproxy_buffers 8 4k;\nproxy_busy_buffers_size 8k;\n\n# Retry\nproxy_next_upstream error timeout http_502 http_503 http_504;\nproxy_next_upstream_tries 2;\n}\n}\n```  \nПримените изменения:  \n```bash\n# Проверьте синтаксис\nsudo nginx -t\n\n# Перезагрузите конфигурацию без downtime\nsudo nginx -s reload\n# или\nsudo systemctl reload nginx\n```  \n**Шаг 3: Решение проблемы с Connection Refused**  \nЕсли upstream не слушает на нужном порту:  \n```bash\n# Найдите, на каком порту слушает приложение\nsudo lsof -i -P -n | grep LISTEN | grep -E 'node|python|java'\n\n# Проверьте bind address (0.0.0.0 vs 127.0.0.1)\n# Если приложение слушает только на 127.0.0.1, а nginx пытается подключиться по 10.x.x.x – будет ошибка\n\n# Исправьте конфигурацию приложения чтобы слушать на 0.0.0.0\n# Например для Node.js/Express:\n# app.listen(8080, '0.0.0.0');\n\n# Для Flask/Gunicorn:\ngunicorn -w 4 -b 0.0.0.0:8080 app:app\n\n# Проверьте файрвол\nsudo ufw status\nsudo iptables -L -n | grep 8080\n\n# Разрешите порт если нужно\nsudo ufw allow 8080/tcp\n```  \n**Шаг 4: Решение проблемы с Timeouts**  \nЕсли upstream обрабатывает запросы слишком долго:  \n```bash\n# Увеличьте таймауты в nginx.conf или в location блоке\nsudo nano /etc/nginx/nginx.conf\n```  \nДобавьте в http блок или location:  \n```nginx\nproxy_connect_timeout 300s;\nproxy_send_timeout 300s;\nproxy_read_timeout 300s;\nsend_timeout 300s;\n```  \nОптимизируйте backend приложение:  \n```bash\n# Проверьте slow queries (для DB-heavy приложений)\n# PostgreSQL:\npsql -c \"SELECT pid, state, query_start, query FROM pg_stat_activity WHERE state != 'idle' ORDER BY query_start LIMIT 10;\"\n\n# MySQL:\nmysql -e \"SHOW FULL PROCESSLIST;\"\n\n# Добавьте индексы, оптимизируйте запросы\n# Масштабируйте horizontally – добавьте больше upstream серверов\n```  \n**Шаг 5: Исправление прав доступа на proxy cache**  \nЕсли ошибка связана с правами:  \n```bash\n# Проверьте владельца директорий\nls -la /var/lib/nginx/\nls -la /var/lib/nginx/proxy/\n\n# Исправьте права\nsudo chown -R www-data:www-data /var/lib/nginx/proxy/\nsudo chmod -R 755 /var/lib/nginx/proxy/\n\n# Или очистите cache\nsudo rm -rf /var/lib/nginx/proxy/*\nsudo systemctl restart nginx\n```  \n**Шаг 6: Мониторинг и алертинг**  \n```bash\n# Настройте мониторинг upstream в nginx\n# Используйте nginx-module-vts или commercial nginx plus\n\n# Добавьте healthcheck скрипт\ncat > /usr/local/bin/nginx_upstream_check.sh <<'EOF'\n#!/bin/bash\nSTATUS=$(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:8080/health)\nif [ \"$STATUS\" != \"200\" ]; then\necho \"Upstream is down! Status: $STATUS\"\nsystemctl restart app-backend\ncurl -X POST https://hooks.slack.com/services/YOUR/WEBHOOK \\\n-d '{\"text\":\"Upstream backend restarted due to health check failure\"}'\nfi\nEOF\n\nchmod +x /usr/local/bin/nginx_upstream_check.sh\necho \"*/2 * * * * /usr/local/bin/nginx_upstream_check.sh\" | crontab -\n\n# Настройте Prometheus nginx-exporter\n# https://github.com/nginxinc/nginx-prometheus-exporter\n```  \n**Шаг 7: Постоянное решение**  \n- Используйте connection pooling и keepalive\n- Настройте graceful shutdown для backend приложений\n- Добавьте health check endpoints\n- Используйте load balancing с несколькими upstream серверами\n- Включите circuit breaker pattern на уровне приложения\n- Настройте auto-scaling для backend (k8s HPA, AWS ASG)",
+            "score": 0.06998327374458313
+          },
+          {
+            "source": "quick-notes.md",
+            "content": "Check the error log for `upstream prematurely closed connection`:\n```bash\ntail -f /var/log/nginx/error.log | grep upstream\n```",
+            "score": 0.05916495993733406
+          },
+          {
+            "source": "nginx-emergency.md",
+            "content": "Логи находятся по стандартному пути `/var/log/nginx/error.log`.  \n| Ошибка | Причина | Решение |\n| :--- | :--- | :--- |\n| (111: Connection refused) | Апстрим (backend) лежит | Проверьте backend сервис |\n| (110: Connection timed out) | Тяжелый запрос или firewall | Увеличьте proxy_read_timeout |",
+            "score": 0.05731674283742905
+          },
+          {
+            "source": "03-nginx-502-bad-gateway.md",
+            "content": "Проверьте статус Nginx и upstream серверов:  \n```bash\n# Проверьте, запущен ли Nginx\nsudo systemctl status nginx\nsudo nginx -t  # Проверка конфигурации\n\n# Посмотрите error log в реальном времени\nsudo tail -f /var/log/nginx/error.log\n\n# Проверьте access log для паттернов\nsudo tail -f /var/log/nginx/access.log | grep \" 502 \"\n```  \n```bash\n# Проверьте доступность upstream серверов\ncurl -v http://127.0.0.1:8080/health\ncurl -v http://10.0.2.15:3000/health\n\n# Проверьте, что порты слушаются\nsudo netstat -tlnp | grep -E ':8080|:3000|:9000'\n# или\nsudo ss -tlnp | grep -E ':8080|:3000'\n\n# Проверьте connectivity\ntelnet 127.0.0.1 8080\nnc -zv 10.0.2.15 3000\n```  \n```bash\n# Проверьте процессы backend приложений\nps aux | grep -E 'node|python|java|gunicorn|uvicorn' | grep -v grep\n\n# Проверьте load average и ресурсы\nuptime\ntop -bn1 | head -20\nfree -h\n\n# Проверьте количество соединений к upstream\nnetstat -an | grep :8080 | wc -l\nss -tan | grep :3000 | grep ESTAB | wc -l\n```",
+            "score": 0.017926467582583427
+          }
+        ],
+        "footnotes": [],
+        "latency_sec": 151.9015089579625,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "rag_search",
+            "params": {
+              "query": "nginx upstream error handling internal SOP"
+            },
+            "observation": "[1] 03-nginx-502-bad-gateway.md (nginx)\nHeader: \nScore: 0.29\n```text\n2025/11/28 15:12:47 [error] 18293#18293: *47821 connect() failed (111: Connection refused) while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\", request_id: \"a7f3c2e9b8d1\"\n2025/11/28 15:12:47 [warn] 18293#18293: *47821 upstream server temporarily disabled while connecting to upstream, client: 203.0.113.42, server: api.example.com, request: \"POST /api/v1/payments HTTP/1.1\", upstream: \"http://127.0.0.1:8080/api/v1/payments\", host: \"api.example.com\"\n203.0.113.42 - - [28/Nov/2025:15:12:47 +0300] \"POST /api/v1/payments HTTP/1.1\" 502 157 \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\" rt=0.003 uct=\"-\" uht=\"-\" urt=\"-\"\n```  \n```text\n2025/11/28 15:15:33 [error] 18294#18294: *48912 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.15:3000/dashboard/analytics\", host: \"www.example.com\", referrer: \"https://www.example.com/dashboard\"\n2025/11/28 15:15:33 [error] 18294#18294: *48912 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 198.51.100.73, server: www.example.com, request: \"GET /dashboard/analytics HTTP/1.1\", upstream: \"http://10.0.2.16:3000/dashboard/analytics\", host: \"www.example.com\"\n198.51.100.73 - - [28/Nov/\n\n---\n[2] 03-nginx-502-bad-gateway.md (nginx)\nHeader: \nScore: 0.07\n**Шаг 1: Быстрая проверка upstream доступности**  \n```bash\n# Если upstream service не запущен, запустите его\nsudo systemctl status app-backend\nsudo systemctl start app-backend\nsudo systemctl enable app-backend\n\n# Для PM2 (Node.js)\npm2 list\npm2 restart app-api\n\n# Для Gunicorn (Python)\nsudo systemctl restart gunicorn\n# или\npkill -HUP gunicorn\n\n# Для Java приложений\nsudo s"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.2847555830376223,
+          "rerank_sec": 1.3820703329984099,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 1.40599,
+          "total_sec": 151.9015089579625
+        }
+      },
+      "keywords": [
+        "502",
+        "Bad Gateway",
+        "Connection refused",
+        "upstream",
+        "недоступен"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "03-nginx-502-bad-gateway.md"
+        ]
+      }
+    },
+    {
+      "id": "q_002",
+      "question": "Что означает exit code 137 для Docker контейнера и какая наиболее вероятная причина?",
+      "expected_answer": "Exit code 137 указывает на то, что процесс контейнера был принудительно завершен сигналом SIGKILL (9). Наиболее частая причина — срабатывание OOM Killer (Out Of Memory) из-за превышения лимита памяти, установленного для контейнера (Docker memory limit) или нехватки системной памяти. Docker inspect в таких случаях показывает 'OOMKilled: true'.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nDocker контейнер внезапно останавливается с exit code 137. В логах приложения может не быть явных ошибок, но контейнер резко падает после стабильной работы. Это указывает на то, что процесс внутри контейнера был принудительно завершён системой из-за нехватки памяти.\n\n### Диагностика / Первопричина\nExit code 137 в Docker означает, что процесс был завершён сигналом SIGKILL (9) + 128 = 137. Это происходит, когда контейнер превышает выделенный лимит памяти (memory limit), и ядро Linux активирует OOM Killer (Out of Memory Killer) для уничтожения процесса, потребляющего больше всего памяти. Docker inspect показывает поле \"State\": {\"OOMKilled\": true}, что подтверждает причину [doc:1]. Приложение может работать нормально до момента, пока не исчерпает выделенную память — например, из-за утечки памяти, неоптимальной настройки JVM или слишком низкого лимита.\n\n### Решение / Ранбук\n1. Проверьте статус контейнера и подтвердите OOMKilled:\n    ```bash\n    docker inspect <container_id> | grep -i oomkilled\n    ```\n    Ожидаемый вывод: \"OOMKilled\": true\n\n2. Проверьте лимиты памяти контейнера:\n    ```bash\n    docker inspect <container_id> | grep -i memory\n    ```\n    Найдите параметры `Memory` и `MemorySwap`.\n\n3. Проверьте использование памяти в момент падения:\n    ```bash\n    docker stats <container_id>\n    ```\n    (Запустите в отдельном терминале во время нагрузки, чтобы зафиксировать пики.)\n\n4. Увеличьте лимит памяти в Docker-команде или в Docker Compose:\n    ```yaml\n    # docker-compose.yml\n    services:\n      app:\n        image: my-app\n        mem_limit: 512m  # Увеличьте с 256m до 512m или выше\n    ```\n    Или в `docker run`:\n    ```bash\n    docker run -m 512m my-app\n    ```\n\n5. Если лимит уже высокий — ищите утечку памяти в приложении:\n    - Для Java: включите GC-логи и проанализируйте с помощью VisualVM или Eclipse MAT.\n    - Для Node.js: используйте `node --inspect` и Chrome DevTools.\n    - Для Python: используйте `tracemalloc` или `memory_profiler`.\n\n6. Настройте мониторинг и алерты:\n    - Интегрируйте `cAdvisor` + `Prometheus` для отслеживания потребления памяти контейнеров.\n    - Установите алерт при превышении 80% памяти в течение 5 минут.\n\n### Риски и Откат\n- **Риск**: Увеличение лимита памяти может привести к нехватке памяти на хосте, что вызовет OOM Killer на уровне хоста и повлияет на другие контейнеры.\n- **Откат**: Верните лимит памяти к предыдущему значению, откатив изменения в docker-compose.yml или команде `docker run`. Перезапустите контейнер:\n    ```bash\n    docker-compose down && docker-compose up -d\n    ```\n    Или:\n    ```bash\n    docker stop <container_id> && docker run -m <old_limit> my-app\n    ```\n\n### Источники\n- [1] 06-docker-exit-code-137.md (docker)\n- [2] 02-k8s-crashloopbackoff.md (k8s)",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [],
+        "latency_sec": 21.3117809999967,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "query_expansion",
+            "params": {
+              "query": "Что означает exit code 137 для Docker контейнера и какая наиболее вероятная причина?"
+            },
+            "observation": "DecomposedQuery(original='Что означает exit code 137 для Docker контейнера и какая наиболее вероятная причина?', expanded_queries=['docker exit code 137 meaning', 'docker container killed OOM out of memory'])"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 1.33654,
+          "total_sec": 21.3117809999967
+        }
+      },
+      "keywords": [
+        "OOMKilled",
+        "SIGKILL",
+        "память",
+        "memory limit"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "06-docker-exit-code-137.md"
+        ]
+      }
+    },
+    {
+      "id": "q_003",
+      "question": "Какой параметр в postgresql.conf на мастере отвечает за уровень записи WAL для репликации и какое значение он должен принимать?",
+      "expected_answer": "Параметр `wal_level` определяет количество информации, записываемой в WAL. Для настройки репликации (как Streaming, так и архивной) он должен быть установлен в значение `replica` (или `logical`, если планируется логическая репликация, так как `logical` включает в себя `replica`). Значение `minimal` не поддерживает репликацию.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nДля настройки потоковой репликации PostgreSQL необходимо правильно настроить параметр записи WAL на мастере, иначе реплики не смогут получать изменения базы данных.\n\n### Диагностика / Первопричина\nПараметр `wal_level` в файле `postgresql.conf` на мастере определяет уровень детализации записи WAL (Write-Ahead Log), необходимый для репликации. Значение `replica` — минимально необходимое для потоковой репликации, так как оно включает всю информацию, необходимую для восстановления на реплике, включая данные для горячего standby [doc:1]. Значения `minimal` (по умолчанию) недостаточно, так как не содержат информации для репликации, а `logical` используется только для логической репликации и избыточно для физической.\n\n### Решение / Ранбук\n1. Подключитесь к мастер-серверу PostgreSQL под пользователем `postgres`:\n    ```bash\n    sudo -u postgres bash\n    ```\n2. Откройте файл конфигурации `postgresql.conf` (обычно находится в `/var/lib/postgresql/<версия>/main/`):\n    ```bash\n    nano /var/lib/postgresql/<версия>/main/postgresql.conf\n    ```\n3. Убедитесь, что параметр установлен следующим образом:\n    ```ini\n    wal_level = replica\n    ```\n4. Убедитесь, что также заданы необходимые смежные параметры:\n    ```ini\n    max_wal_senders = 10\n    wal_keep_segments = 64\n    hot_standby = on\n    ```\n5. Перезагрузите PostgreSQL для применения изменений (без перезагрузки сервера):\n    ```bash\n    sudo systemctl reload postgresql\n    ```\n6. Проверьте текущее значение параметра в БД:\n    ```bash\n    sudo -u postgres psql -c \"SHOW wal_level;\"\n    ```\n\n### Риски и Откат\n- **Риск**: Неправильное значение `wal_level = minimal` или опечатка (например, `replica` → `repilca`) приведет к сбою репликации. Реплики перестанут получать WAL-сегменты.\n- **Откат**: Верните `wal_level` в исходное значение, перезагрузите PostgreSQL, убедитесь, что реплики восстановили соединение. Всегда делайте бэкап `postgresql.conf` перед изменением:\n    ```bash\n    cp /var/lib/postgresql/<версия>/main/postgresql.conf /var/lib/postgresql/<версия>/main/postgresql.conf.bak\n    ```\n\n### Источники\n- [1] 11-postgresql-replication-guide.md (postgres)",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [],
+        "latency_sec": 7.303312083007768,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "query_expansion",
+            "params": {
+              "query": "Какой параметр в postgresql.conf на мастере отвечает за уровень записи WAL для репликации и какое значение он должен принимать?"
+            },
+            "observation": "DecomposedQuery(original='Какой параметр в postgresql.conf на мастере отвечает за уровень записи WAL для репликации и какое значение он должен принимать?', expanded_queries=['postgresql.conf primary wal_level replication', 'postgresql master wal_level setting for streaming replication'])"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 0.57953,
+          "total_sec": 7.303312083007768
+        }
+      },
+      "keywords": [
+        "wal_level",
+        "replica"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "11-postgresql-replication-guide.md"
+        ]
+      }
+    },
+    {
+      "id": "q_004",
+      "question": "Как называется таблица в DynamoDB для блокировок Terraform state и какой ключ partition key она должна иметь?",
+      "expected_answer": "Для блокировки состояния Terraform (State Locking) рекомендуется создать таблицу DynamoDB (обычно с именем `terraform-state-lock`). Критически важно, чтобы таблица имела Partition Key с точным именем `LockID` (тип String), иначе Terraform не сможет захватить лок.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nДля предотвращения конфликтов при одновременном доступе к Terraform state в команде используется блокировка через DynamoDB. Необходимо знать имя таблицы и ключ партиционирования для корректной настройки backend в Terraform.\n\n### Диагностика / Первопричина\nВнутренняя документация подтверждает, что для блокировки Terraform state используется таблица DynamoDB с именем `terraform-state-lock`, а в качестве partition key выступает атрибут `LockID` типа String (S). Это стандартная практика в AWS-экосистеме, обеспечивающая уникальность блокировки для каждого состояния [doc:1].\n\n### Решение / Ранбук\n1. Убедитесь, что таблица DynamoDB создана с правильной схемой:\n```bash\naws dynamodb create-table \\\n  --table-name terraform-state-lock \\\n  --attribute-definitions AttributeName=LockID,AttributeType=S \\\n  --key-schema AttributeName=LockID,KeyType=HASH \\\n  --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5\n```\n2. В конфигурации Terraform укажите имя таблицы в блоке backend:\n```hcl\nterraform {\n  backend \"s3\" {\n    bucket         = \"my-company-terraform-state\"\n    key            = \"global/s3/terraform.tfstate\"\n    region         = \"us-east-1\"\n    dynamodb_table = \"terraform-state-lock\"\n    encrypt        = true\n  }\n}\n```\n\n### Риски и Откат\n- **Риск**: Указание неверного имени таблицы приведёт к ошибке `AccessDeniedException` или `ResourceNotFoundException` при инициализации Terraform.\n- **Откат**: Убедитесь, что в `terraform.tf` указано правильное имя таблицы. Если таблица не существует — создайте её заново по инструкции выше. Не удаляйте таблицу, если в ней есть активные блокировки — это может привести к повреждению состояния.\n\n### Источники\n- [1] aws-s3-terraform.md",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [],
+        "latency_sec": 12.184591875062324,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "query_expansion",
+            "params": {
+              "query": "Как называется таблица в DynamoDB для блокировок Terraform state и какой ключ partition key она должна иметь?"
+            },
+            "observation": "DecomposedQuery(original='Как называется таблица в DynamoDB для блокировок Terraform state и какой ключ partition key она должна иметь?', expanded_queries=['DynamoDB table name for Terraform state locking', 'DynamoDB partition key for Terraform state lock'])"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 1.30953,
+          "total_sec": 12.184591875062324
+        }
+      },
+      "keywords": [
+        "terraform-state-lock",
+        "LockID"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "aws-s3-terraform.md"
+        ]
+      }
+    },
+    {
+      "id": "q_005",
+      "question": "Какую политику overflow использует RabbitMQ для отброса старых сообщений из начала очереди?",
+      "expected_answer": "RabbitMQ использует политику `overflow: \"drop-head\"`. Когда очередь достигает максимальной длины (`max-length`), эта политика предписывает удалять ('drop') сообщения из головы ('head') очереди — то есть самые старые, чтобы освободить место для новых входящих сообщений.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nRabbitMQ не отбрасывает старые сообщения из очереди по умолчанию, если не настроены лимиты. При переполнении очереди без политики переполнения продюсеры получают ошибки, а очередь растёт до исчерпания памяти. Требуется явная настройка политики для автоматического удаления старых сообщений.\n\n### Диагностика / Первопричина\nRabbitMQ использует политику `overflow` для управления переполнением очередей. Значение `drop-head` указывает, что при достижении лимита (`max-length` или `max-length-bytes`) самые старые сообщения (из начала очереди) удаляются без уведомления продюсера и без отправки в Dead Letter Exchange (DLX). Это поведение по умолчанию, если `overflow` не указан явно. Без задания `max-length` политика `overflow` игнорируется, и очередь продолжает расти [web:5]. Утверждения о том, что `drop-head` может отправлять сообщения в DLX, являются неверными и основаны на недоверенных источниках [web:2] — официальная документация подтверждает, что сообщения просто удаляются [web:1].\n\n### Решение / Ранбук\n1. Установите политику `drop-head` для нужных очередей, **обязательно указав `max-length`** — без него политика не сработает:\n    ```bash\n    rabbitmqctl set_policy tasks-overflow \"tasks.*\" '{\"max-length\":1000000,\"overflow\":\"drop-head\"}' --apply-to queues\n    ```\n2. Проверьте, что политика применена:\n    ```bash\n    rabbitmqctl list_policies\n    ```\n3. Убедитесь, что очередь имеет лимит (через RabbitMQ Management UI или команду):\n    ```bash\n    rabbitmqadmin list queues name messages\n    ```\n\n### Риски и Откат\n- **Риск**: Сообщения, удалённые `drop-head`, **безвозвратно теряются**. Это может привести к потере критичных данных, если приложение не ожидает таких потерь.\n- **Откат**: Удалите политику, чтобы вернуть поведение по умолчанию (без автоматического отбрасывания):\n    ```bash\n    rabbitmqctl delete_policy tasks-overflow\n    ```\n- **Альтернатива**: Если нужно сохранять сообщения при переполнении, используйте `overflow=reject-publish` — тогда продюсер получит ошибку и может повторить отправку.\n\n### Источники\n- [1] https://www.rabbitmq.com/docs/maxlength\n- [2] https://stackoverflow.com/questions/77804007/when-using-x-max-length-and-x-overflow-how-to-send-to-dead-letter-exchange",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "unknown",
+            "title": "When using 'x-max-length' and 'x-overflow', how to send to dead ...",
+            "source_file": "stackoverflow.com",
+            "quote": "In summary, the drop-head overflow behavior in RabbitMQ leads to the oldest messages being dropped and not sent to a DLX. This is in contrast to",
+            "source_type": "web",
+            "url": "https://stackoverflow.com/questions/77804007/when-using-x-max-length-and-x-overflow-how-to-send-to-dead-letter-exchange"
+          },
+          {
+            "doc_id": 2,
+            "service": "unknown",
+            "title": "Improving RabbitMQ Performance - 华为云",
+            "source_file": "support.huaweicloud.com",
+            "quote": "If overflow is set to drop-head, the earliest messages at the head of the queue are discarded or made dead-letter, and the latest n messages",
+            "source_type": "web",
+            "url": "https://support.huaweicloud.com/intl/en-us/bestpractice-rabbitmq/bp-0012.html"
+          }
+        ],
+        "latency_sec": 89.351509082946,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "web_search",
+            "params": {
+              "query": "rabbitmq queue overflow policy drop-head documentation"
+            },
+            "observation": "[1] When using 'x-max-length' and 'x-overflow', how to send to dead ... (stackoverflow.com)\nURL: https://stackoverflow.com/questions/77804007/when-using-x-max-length-and-x-overflow-how-to-send-to-dead-letter-exchange\nIn summary, the drop-head overflow behavior in RabbitMQ leads to the oldest messages being dropped and not sent to a DLX. This is in contrast to\n---\n[2] Improving RabbitMQ Performance - 华为云 (support.huaweicloud.com)\nURL: https://support.huaweicloud.com/intl/en-us/bestpractice-rabbitmq/bp-0012.html\nIf overflow is set to drop-head, the earliest messages at the head of the queue are discarded or made dead-letter, and the latest n messages\n---\n[3] User policy with overflow \"reject-publish\" does not revert to default ... (github.com)\nURL: https://github.com/rabbitmq/rabbitmq-server/issues/1980\nThe expectation is that overflow will revert to the default value drop-head and no longer send nacks to the producer. Producer sends a message\n---\n[4] Priority Support in Queues - RabbitMQ (www.rabbitmq.com)\nURL: https://www.rabbitmq.com/docs/priority\nQueues which have a max-length set drop messages as usual from the head of the queue to enforce the limit. This means that higher priority messages might be\n---\n[5] Queue Length Limit | RabbitMQ (www.rabbitmq.com)\nURL: https://www.rabbitmq.com/docs/maxlength\nrabbitmqctl set_policy my-pol \"^one-meg$\" \\rabbitmqctl set_policy my-pol \"^one-meg$\"  \\  '{\"max-length-bytes\":1048576}' \\  '{\"max-length-bytes\":1048576}'  \\  --apply-to queues --apply-to queues. rabbitmqctl set_policy my-pol \"^two-messages$\" \\rabbitmqctl set_policy my-pol \"^two-messages$\"  \\  '{\"max-length\":2,\"overflow\":\"reject-publish\"}' \\  '{\"max-length\":2,\"overflow\":\"reject-publish\"}'  \\  --apply-to queues --apply-to queues. rabbitmqadmin policies declare \\ rabbitmqadmin policies declare  \\  "
+          },
+          {
+            "step": 2,
+            "thought": "Implicit thought (tool call)",
+            "action": "web_search",
+            "params": {
+              "query": "rabbitmq default overflow policy if not specified"
+            },
+            "observation": "[1] Applying policies to Amazon MQ for RabbitMQ (docs.aws.amazon.com)\nURL: https://docs.aws.amazon.com/amazon-mq/latest/developer-guide/rabbitmq-defaults-applying-policies.html\nIf you have deleted the recommended default policies and limits, and want to re-create them, or you have created additional vhosts and want to apply the default policies and limits to your new vhosts, you can use the following steps. ###### To apply default policies and virtual host limits using the RabbitMQ web console. 3. From the list of brokers, choose the name of the broker to which you want to apply the new policy. If you have not created additional vhosts, the **Virtual host** option is n\n---\n[2] Rabbitmq x-overflow reject-publish does not work when set ... (stackoverflow.com)\nURL: https://stackoverflow.com/questions/51947838/rabbitmq-x-overflow-reject-publish-does-not-work-when-set-via-web-console\n##### Collectives™ on Stack Overflow. # Rabbitmq x-overflow reject-publish does not work when set via web console. I'm trying to set the overflow behavior of a particular queue in the Rabbitmq to reject messages exceeding the max limit. I'm using the web console to add a new queue and set the x-max-length. Then I manually added x-overflow and gave it the value of reject-publish. ## 2 Answers 2. rabbitmqctl set_policy limit-1gb \".*\" '{\"max-length-bytes\":1000000000,\"overflow\":\"reject-publish\"}' --\n---\n[3] Setting Default RabbitMQ Policies for the On‑Demand ... (techdocs.broadcom.com)\nURL: https://techdocs.broadcom.com/us/en/vmware-tanzu/platform/tanzu-rabbitmq-tanzu-platform/10-1/rabbitmq-tp/policies-od.html\nRabbitMQ assigns 0 to priority when no value is provided.You do not need to assign a value to the priority if you have no overlapping policies.\n---\n[4] User policy with overflow \"reject-publish\" does not revert to ... (github.com)\nURL: https://github.com/rabbitmq/rabbitmq-server/issues/1980\nUser policy with overflow \"reject-publish\" does not revert to default value when overflow removed fr"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 1.41756,
+          "total_sec": 89.351509082946
+        }
+      },
+      "keywords": [
+        "drop-head"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "08-rabbitmq-queue-overflow.md"
+        ]
+      }
+    },
+    {
+      "id": "q_006",
+      "question": "Какой exit code означает graceful shutdown в Kubernetes и какому сигналу он соответствует?",
+      "expected_answer": "Exit Code 143 в Kubernetes (и Docker) соответствует получению процесса сигнала SIGTERM (128 + 15 = 143). Это стандартный сигнал для запроса корректного завершения работы приложения (graceful shutdown), в отличие от SIGKILL.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nВ Kubernetes под завершается с exit code 143, что указывает на graceful shutdown, инициированный сигналом SIGTERM.\n\n### Диагностика / Первопричина\nExit Code 143 в Kubernetes соответствует сигналу SIGTERM, который отправляется при graceful shutdown (например, при масштабировании вниз, обновлении деплоймента или ручном удалении пода). Это означает, что приложение получило корректный запрос на завершение и успешно обработало его, не являясь сбоем [doc:1]. В отличие от Exit Code 137 (OOMKilled) или 139 (SIGSEGV), код 143 — это ожидаемое поведение.\n\n### Решение / Ранбук\n1. Проверьте exit code пода, который завершился:\n```bash\nkubectl get pod <pod-name> -n <namespace> -o jsonpath='{.status.containerStatuses[0].state.terminated.exitCode}'\n```\n2. Если результат — 143, это подтверждает graceful shutdown. Проверьте логи пода на наличие сообщений о получении SIGTERM:\n```bash\nkubectl logs <pod-name> -n <namespace> --previous\n```\n3. Убедитесь, что приложение корректно обрабатывает SIGTERM (например, через signal handlers в коде). Для Go/Node.js/Python приложений это требует явной обработки сигнала.\n\n### Риски и Откат\n- **Риск**: Неправильная интерпретация кода 143 как ошибки может привести к ложно сработавшим алертам. \n- **Откат**: Если алерт сработал ложно — добавьте исключение для exit code 143 в ваш мониторинг (например, в Prometheus Alertmanager или Datadog). Не откатывайте деплой — это нормальное поведение.\n\n### Источники\n- [1] 02-k8s-crashloopbackoff.md (k8s)",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [],
+        "latency_sec": 12.486893708002754,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "query_expansion",
+            "params": {
+              "query": "Какой exit code означает graceful shutdown в Kubernetes и какому сигналу он соответствует?"
+            },
+            "observation": "DecomposedQuery(original='Какой exit code означает graceful shutdown в Kubernetes и какому сигналу он соответствует?', expanded_queries=['kubernetes pod exit code graceful shutdown', 'kubernetes SIGTERM signal graceful termination exit code'])"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 1.8682699999999999,
+          "total_sec": 12.486893708002754
+        }
+      },
+      "keywords": [
+        "143",
+        "SIGTERM"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "02-k8s-crashloopbackoff.md"
+        ]
+      }
+    },
+    {
+      "id": "q_007",
+      "question": "Какой паттерн мониторинга (RED или USE) SRE Handbook рекомендует для пользовательских метрик сервисов?",
+      "expected_answer": "SRE Handbook рекомендует паттерн **RED** для метрик сервисов и API. В отличие от USE (ориентированного на ресурсы), RED фокусируется на пользовательском опыте: **R**ate (количество запросов в секунду), **E**rrors (количество ошибок) и **D**uration (время обработки запроса/latency).",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nНеобходимо определить, какой паттерн мониторинга (RED или USE) рекомендует SRE Handbook для пользовательских метрик сервисов.\n\n### Диагностика / Первопричина\nSRE Handbook однозначно рекомендует **RED-паттерн** для мониторинга пользовательских метрик сервисов. RED означает:\n- **Rate** — скорость запросов (запросы в секунду),\n- **Errors** — количество ошибок (ошибки в секунду),\n- **Duration** — время ответа (задержка запросов).\nЭти метрики напрямую отражают опыт пользователя и работоспособность сервиса с точки зрения клиента. USE-паттерн (Utilization, Saturation, Errors) предназначен для мониторинга инфраструктуры (CPU, память, диски), а не пользовательских взаимодействий [doc:1].\n\n### Решение / Ранбук\n1. Убедитесь, что ваш сервис экспортирует метрики в формате Prometheus через эндпоинт `/metrics`.\n    ```bash\n    curl -s http://your-service:port/metrics | grep -E \"(http_requests_total|http_request_duration_seconds|http_requests_total{status=\\\"error\\\"})\"\n    ```\n2. Настройте сбор метрик через ServiceMonitor в Kubernetes (если используется Prometheus Operator):\n    ```yaml\n    apiVersion: monitoring.coreos.com/v1\n    kind: ServiceMonitor\n    metadata:\n      name: your-service-monitor\n      namespace: monitoring\n    spec:\n      selector:\n        matchLabels:\n          app: your-service\n      namespaceSelector:\n        matchNames:\n          - your-service-namespace\n      endpoints:\n      - port: metrics\n        path: /metrics\n        interval: 15s\n    ```\n3. Создайте алерты в Prometheus/Grafana на основе RED-метрик:\n    - Алерт на рост ошибок: `rate(http_requests_total{status=\"error\"}[5m]) > 0.1`\n    - Алерт на рост задержек: `histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1`\n\n### Риски и Откат\n- **Риск**: Неправильная настройка ServiceMonitor может привести к отсутствию метрик в Prometheus. \n- **Откат**: Удалите ServiceMonitor и проверьте, что метрики снова появляются через `curl` на эндпоинт. Восстановите предыдущую версию манифеста из Git.\n\n### Источники\n- [1] sre-engineering-handbook.md\n",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [],
+        "latency_sec": 11.524414374958724,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "query_expansion",
+            "params": {
+              "query": "Какой паттерн мониторинга (RED или USE) SRE Handbook рекомендует для пользовательских метрик сервисов?"
+            },
+            "observation": "DecomposedQuery(original='Какой паттерн мониторинга (RED или USE) SRE Handbook рекомендует для пользовательских метрик сервисов?', expanded_queries=['SRE Handbook RED metrics pattern user service monitoring', 'SRE Handbook USE metrics pattern user service monitoring', 'SRE Handbook recommended monitoring metrics service RED USE'])"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 0.85638,
+          "total_sec": 11.524414374958724
+        }
+      },
+      "keywords": [
+        "RED",
+        "Rate",
+        "Errors",
+        "Duration"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "sre-engineering-handbook.md"
+        ]
+      }
+    },
+    {
+      "id": "q_008",
+      "question": "Какую команду SQL нужно выполнить на MySQL слейве для запуска процесса репликации?",
+      "expected_answer": "На слейве MySQL необходимо выполнить команду `START SLAVE;` (или `START REPLICA;` в новых версиях). Эта команда запускает потоки `IO_THREAD` (чтение binlog мастера) и `SQL_THREAD` (применение событий). Перед этим слейв должен быть сконфигурирован через `CHANGE MASTER TO`.",
+      "source_file": "",
+      "difficulty": "hard",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nНа MySQL слейве остановлена репликация, и требуется запустить процесс синхронизации с мастером.\n\n### Диагностика / Первопричина\nРепликация на слейве может быть остановлена по различным причинам: сбой сети, ошибка в данных, ручная остановка через `STOP SLAVE`. Для возобновления работы необходимо выполнить команду `START SLAVE`, но только после корректной настройки источника репликации через `CHANGE MASTER TO` [doc:1].\n\n### Решение / Ранбук\nПошаговые инструкции для запуска репликации на MySQL слейве:\n\n1. Подключитесь к MySQL слейву с правами администратора:\n```bash\nmysql -u root -p\n```\n\n2. Убедитесь, что настройки мастера корректны (замените значения на актуальные):\n```sql\nCHANGE MASTER TO \nMASTER_HOST='192.168.1.10', \nMASTER_USER='repl', \nMASTER_PASSWORD='StrongPass123', \nMASTER_AUTO_POSITION=1;\n```\n> ⚠️ **Важно**: Убедитесь, что `MASTER_HOST` и учетные данные актуальны и соответствуют внутренней документации. Неправильные данные могут привести к необратимому расхождению данных.\n\n3. Запустите репликацию:\n```sql\nSTART SLAVE;\n```\n\n4. Проверьте статус репликации:\n```sql\nSHOW SLAVE STATUS\\G\n```\n\n5. Убедитесь, что значения `Slave_IO_Running: Yes` и `Slave_SQL_Running: Yes` — оба должны быть `Yes`. Также проверьте `Seconds_Behind_Master` — он должен стремиться к 0.\n\n### Риски и Откат\n- **Риск**: Неправильные параметры `CHANGE MASTER TO` могут привести к бесконечной попытке подключения или репликации с ошибками. \n- **Откат**: Если репликация не запускается, выполните `STOP SLAVE;` и проверьте логи MySQL (`/var/log/mysql/error.log`). Для полного сброса репликации выполните `RESET SLAVE ALL;` — **это удалит все метаданные репликации**, и потребуется повторная настройка с нуля [doc:1].\n\n### Источники\n- [1] 14-mysql-replication-guide.md (mysql)",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [],
+        "latency_sec": 15.570874791941606,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "query_expansion",
+            "params": {
+              "query": "Какую команду SQL нужно выполнить на MySQL слейве для запуска процесса репликации?"
+            },
+            "observation": "DecomposedQuery(original='Какую команду SQL нужно выполнить на MySQL слейве для запуска процесса репликации?', expanded_queries=['mysql slave start replication', 'mysql replica start slave', 'mysql replication slave command'])"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 0.86184,
+          "total_sec": 15.570874791941606
+        }
+      },
+      "keywords": [
+        "START SLAVE"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "14-mysql-replication-guide.md"
+        ]
+      }
+    },
+    {
+      "id": "q_009",
+      "question": "Какой параметр sysctl рекомендуется увеличить для предотвращения отбрасывания входящих SYN-пакетов при высокой нагрузке на HAProxy?",
+      "expected_answer": "Рекомендуется увеличить параметр ядра `net.core.somaxconn` (например, до 65535). Этот параметр определяет максимальный размер очереди соединений, ожидающих принятия (accept) сокетом. При его нехватке новые TCP-соединения могут сбрасываться.",
+      "source_file": "",
+      "difficulty": "medium",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nПри высокой нагрузке HAProxy может отбрасывать входящие SYN-пакеты, что приводит к отказам в установлении соединений (например, клиенты видят таймауты или ошибки 503). Это происходит из-за переполнения очереди SYN-запросов или лимита на количество ожидающих соединений в ядре Linux.\n\n### Диагностика / Первопричина\nОтбрасывание SYN-пакетов происходит, когда очередь ожидающих соединений (listen backlog) превышает лимиты ядра. Два ключевых параметра sysctl отвечают за это:\n- `net.core.somaxconn` — максимальное количество соединений в очереди прослушивания сокета (влияет на HAProxy-бэкенд).\n- `net.ipv4.tcp_max_syn_backlog` — максимальное количество SYN-запросов, которые ядро может хранить до завершения трёхэтапного рукопожатия.\n\nЕсли эти параметры установлены по умолчанию (обычно 128 или 256), они не справляются с высокой нагрузкой, что приводит к отбрасыванию новых SYN-пакетов [doc:1].\n\n### Решение / Ранбук\n1. Проверьте текущие значения параметров:\n```bash\nsysctl net.core.somaxconn net.ipv4.tcp_max_syn_backlog\n```\n\n2. Увеличьте значения в `/etc/sysctl.conf` (или в файле в `/etc/sysctl.d/`):\n```text\nnet.core.somaxconn = 65535\nnet.ipv4.tcp_max_syn_backlog = 16384\n```\n\n3. Примените изменения без перезагрузки:\n```bash\nsysctl -p\n```\n\n4. Перезапустите HAProxy для применения новых лимитов:\n```bash\nsystemctl restart haproxy\n```\n\n5. Проверьте, что HAProxy использует достаточный `backlog` в конфиге (в секции `bind`):\n```text\nbind *:80 backlog 65535\n```\n\n> ⚠️ **Важно**: Значение `backlog` в HAProxy не должно превышать `net.core.somaxconn`.\n\n### Риски и Откат\n- **Риск**: Неправильное значение `net.core.somaxconn` выше, чем поддерживает HAProxy, может привести к неэффективному использованию памяти, но не к сбоям.\n- **Риск**: Установка `net.ipv4.tcp_max_syn_backlog` слишком низко может не решить проблему.\n- **Откат**: Верните значения в `/etc/sysctl.conf` к исходным (например, `net.core.somaxconn = 128`, `net.ipv4.tcp_max_syn_backlog = 1024`) и выполните `sysctl -p`.\n\n### Источники\n- [1] haproxy-503-troubleshoot.md\n- [2] linux-network-performance-tuning.md",
+        "rewritten_query": "",
+        "retrieved_contexts": [],
+        "footnotes": [],
+        "latency_sec": 46.82555870804936,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "query_expansion",
+            "params": {
+              "query": "Какой параметр sysctl рекомендуется увеличить для предотвращения отбрасывания входящих SYN-пакетов при высокой нагрузке на HAProxy?"
+            },
+            "observation": "DecomposedQuery(original='Какой параметр sysctl рекомендуется увеличить для предотвращения отбрасывания входящих SYN-пакетов при высокой нагрузке на HAProxy?', expanded_queries=['sysctl net.core.somaxconn increase haproxy syn flood prevention', 'sysctl net.ipv4.tcp_max_syn_backlog haproxy high load connection handling'])"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 0.0,
+          "rerank_sec": 0.0,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 1.34427,
+          "total_sec": 46.82555870804936
+        }
+      },
+      "keywords": [
+        "net.core.somaxconn"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "haproxy-l7-deep-dive.md"
+        ]
+      }
+    },
+    {
+      "id": "q_010",
+      "question": "Что означает флаг завершения сессии 'sH--' в логах HAProxy?",
+      "expected_answer": "Флаг `sH--` расшифровывается так: 's' указывает, что инициатором разрыва соединения был **Server**, а 'H' означает, что это произошло на этапе получения или обработки заголовков (**Headers**). То есть сервер закрыл соединение или перестал отвечать до того, как HAProxy получил полные заголовки ответа.",
+      "source_file": "",
+      "difficulty": "simple",
+      "category": "factual_simple",
+      "rag_output": {
+        "generated_answer": "### Описание проблемы\nФлаг `sH--` в логах HAProxy указывает на то, что backend-сервер разорвал TCP-соединение до того, как HAProxy смог полностью прочитать и обработать HTTP-заголовки ответа. Это приводит к ошибке 502 Bad Gateway на стороне клиента. ### Диагностика / Первопричина\nФлаг `sH--` — это внутренний код HAProxy, обозначающий, что сервер инициировал разрыв соединения на уровне TCP до завершения передачи HTTP-заголовков. Это не таймаут (это `sT--`), а внезапное закрытие сокета. Возможные причины на стороне сервера:\n- Сервер аварийно завершил процесс (OOM-killer, сегфолт)\n- Сервер превысил лимиты соединений или ресурсов\n- Сервер закрыл соединение из-за внутренней ошибки (некорректный ответ, баг в приложении) Внутренний контекст не предоставляет деталей о конкретных настройках или команды диагностики сервера. Поэтому единственный подтверждённый шаг — анализ логов backend-сервера по IP и порту, указанным в логе HAProxy. ### Решение / Ранбук\n1. Найдите в логах HAProxy строки с флагом `sH--`. Пример: ``` Apr 5 10:23:45 haproxy: 192.168.1.10:54321 [05/Apr/2025:10:23:44.123] http-in backend/s1 1/0/500 502 123 - - ---- 1/1/1/1/0 0/0 \"GET /api HTTP/1.1\" ``` Запомните IP и порт backend-сервера (в примере: `backend/s1` → 10.0.0.1:80). 2. Перейдите на backend-сервер с этим IP-адресом и найдите логи приложения (например, Nginx, Node.js, Java) за время ±5 секунд от временной метки из лога HAProxy. Ищите ошибки: `segmentation fault`, `connection reset by peer`, `OutOfMemory`, `closed connection`. 3. Если доступ к логам бэкенда невозможен, включите детальное логирование HAProxy (info-уровень) для будущих инцидентов: ```haproxy global log /dev/log local0 info ``` (Не используйте `debug` — это перегрузит диск.) ### Риски и Откат\n- **Риск**: Игнорирование `sH--` может приводить к постоянным 502 ошибкам и деградации сервиса. Увеличение таймаутов HAProxy не решит проблему — она в бэкенде.\n- **Откат**: Нет необходимости откатывать, так как это не изменение конфигурации HAProxy. Если проблема временная (например, OOM-killer), она может исчезнуть сама. Если повторяется — требуется диагностика бэкенда. ### Источники\n- [1] haproxy-l7-deep-dive.md",
+        "rewritten_query": "",
+        "retrieved_contexts": [
+          {
+            "source": "haproxy-l7-deep-dive.md",
+            "content": "1. **Check Timeout**: Проверьте, не слишком ли агрессивны проверки здоровья (health checks).\n- `inter 2s fall 3 rise 2` — это 6 секунд до признания сервера \"падшим\".\n2. **MaxConn**: Проверьте, не упираетесь ли вы в лимиты `maxconn` в секции `global`.\n3. **Internal Errors**: Ищите в логах флаги завершения сессии.\n- `sH--`: Сервер закрыл соединение до обработки заголовков.\n- `cH--`: Тайм-аут клиента.",
+            "score": 0.9017913341522217
+          }
+        ],
+        "footnotes": [
+          {
+            "doc_id": 1,
+            "service": "haproxy",
+            "title": "haproxy-l7-deep-dive.md",
+            "source_file": "haproxy-l7-deep-dive.md",
+            "quote": "1. **Check Timeout**: Проверьте, не слишком ли агрессивны проверки здоровья (health checks).\n- `inter 2s fall 3 rise 2` — это 6 секунд до признания сервера \"падшим\".\n2. **MaxConn**: Проверьте, не упир",
+            "source_type": "doc"
+          }
+        ],
+        "latency_sec": 106.02064808399882,
+        "answer_type": "final_answer",
+        "trace": [
+          {
+            "step": 1,
+            "thought": "Implicit thought (tool call)",
+            "action": "rag_search",
+            "params": {
+              "query": "HAProxy session flag sH-- meaning termination shutdown"
+            },
+            "observation": "[1] haproxy-l7-deep-dive.md (haproxy)\nHeader: \nScore: 0.90\n1. **Check Timeout**: Проверьте, не слишком ли агрессивны проверки здоровья (health checks).\n- `inter 2s fall 3 rise 2` — это 6 секунд до признания сервера \"падшим\".\n2. **MaxConn**: Проверьте, не упираетесь ли вы в лимиты `maxconn` в секции `global`.\n3. **Internal Errors**: Ищите в логах флаги завершения сессии.\n- `sH--`: Сервер закрыл соединение до обработки заголовков.\n- `cH--`: Тайм-аут клиента.\n\n---\n[2] haproxy-503-troubleshoot.md (/)\nHeader: \nScore: 0.57\nВ логах HAProxy наблюдается большое количество сообщений `sC--` (server connection failure) или `sD--` (server session termination). Пользователи жалуются на периодические ошибки 503 Service Unavailable.\n\n---\n[3] haproxy-l7-deep-dive.md (haproxy)\nHeader: \nScore: 0.00\nИспользуются, когда нельзя менять заголовки ответа.  \n```haproxy\nbackend dynamic-backend\nstick-table type ip size 1m expire 30m\nstick on src\nserver s1 10.0.0.1:80 check\n```  \n> [!WARNING]\n> Stick-таблицы хранятся в памяти одного процесса. При перезагрузке HAProxy все привязки будут сброшены, если не настроена репликация через `peers`.\n\n---\n[4] vault-root-ca-expiration.md (vault)\nHeader: \nScore: 0.00\n```bash\n# Проверка срока действия локального файла сертификата\nopenssl x509 -in /etc/vault.d/vault.crt -text -noout | grep \"Not After\"\n\n# Проверка сертификата удаленного сервера\necho | openssl s_client -connect vault.internal:8200 2>/dev/null | openssl x509 -noout -dates\n```  \n> [!WARNING]\n> При экстренной замене сертификатов никогда не удаляйте старые CA из доверенных цепочек (Trust Bundles) до тех пор, пока все клиенты не обновятся, иначе вы получите массовый отказ соединений.  \n---\n*Отчет №2024-12-15-V*\n*Статус: Closed*\n*Подготовлено: SRE Department*  \n![График доступности сервисов](path/to/vault_outage_grafana.png)  \nСмотрите также: [Безопасность SSH](ssh-security.md)\n*FIXME: Проверить совместимость новых сертификатов с Jenkins плагином.*\n\n---\n[5] sre-engineering-handbook.md (sre)\nHeader: \nS"
+          },
+          {
+            "step": 2,
+            "thought": "Implicit thought (tool call)",
+            "action": "web_search",
+            "params": {
+              "query": "HAProxy sH-- flag common causes and solutions"
+            },
+            "observation": "[1] 502 Bad Gateway with SH flag on the log - Help! - HAProxy community (discourse.haproxy.org)\nURL: https://discourse.haproxy.org/t/502-bad-gateway-with-sh-flag-on-the-log/11551\nThe logged request may indicate a small set of faulty requests, demonstrating bugs in the application. Sometimes this might also be caused by an\n---\n[2] How To Troubleshoot Common HAProxy Errors | DigitalOcean (www.digitalocean.com)\nURL: https://www.digitalocean.com/community/tutorials/how-to-troubleshoot-common-haproxy-errors\nThere are three main commands, and a common log location that you can use to get started troubleshooting HAProxy errors. Generally when you are troubleshooting HAProxy, you will use these commands in the order indicated here, and then examine the log file for specific diagnostic data. The commands and log that you will commonly use to troubleshoot HAProxy across most Linux distributions are:. If your HAProxy server has errors in the `journalctl` logs like the previous example, then the next step\n---\n[3] HAProxy/session states - Wikitech - Wikimedia.org (wikitech.wikimedia.org)\nURL: https://wikitech.wikimedia.org/wiki/HAProxy/session_states\nFlags Reason -- Normal termination. CC The client aborted before the connection could be established to the server. This can happen when HAProxy\n---\n[4] 502 with SH-- errors randomly occuring · Issue #2751 - GitHub (github.com)\nURL: https://github.com/haproxy/haproxy/issues/2751\nIf it's the same connection (I don't know if it is), it could mean either a bug in haproxy's sending or varnish's receiving end. Here varnish\n---\n[5] Connection reset with \"SH\" termination code | 502 Bad Gateway (discourse.haproxy.org)\nURL: https://discourse.haproxy.org/t/connection-reset-with-sh-termination-code-502-bad-gateway/7515\nWe are facing a 502 Bad gateway error with “SH” as terminate state in Haproxy access logs and also when we have reviewed tcpdump trace of client-> Haproxy &"
+          }
+        ],
+        "timings": {
+          "retrieve_sec": 1.2877166250254959,
+          "rerank_sec": 2.9548933749319986,
+          "llm_generation_sec": 0.0,
+          "query_expansion_sec": 0.78035,
+          "total_sec": 106.02064808399882
+        }
+      },
+      "keywords": [
+        "server",
+        "headers",
+        "закрыл соединение"
+      ],
+      "meta": {
+        "expected_tools": [
+          "rag_search"
+        ],
+        "reference_contexts": [
+          "haproxy-l7-deep-dive.md"
+        ]
+      }
+    }
+  ]
+}
